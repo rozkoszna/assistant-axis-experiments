@@ -45,7 +45,6 @@ ENV/
 .env.local
 
 # Outputs
-outputs/
 *.parquet
 
 # OS

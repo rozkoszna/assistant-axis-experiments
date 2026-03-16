@@ -1,0 +1,41 @@
+{
+  "num_pairs": 5,
+  "neutral_mean": 1.4032587885856629,
+  "confused_mean": 1.631563091278076,
+  "mean_delta_confused_minus_neutral": 0.22830430269241334,
+  "median_delta_confused_minus_neutral": 0.019550442695617676,
+  "num_positive": 3,
+  "num_negative": 2,
+  "results": [
+    {
+      "id": "backprop",
+      "neutral_score": 1.6307514905929565,
+      "confused_score": 1.557457685470581,
+      "delta_confused_minus_neutral": -0.07329380512237549
+    },
+    {
+      "id": "budget",
+      "neutral_score": 1.6153595447540283,
+      "confused_score": 2.2464816570281982,
+      "delta_confused_minus_neutral": 0.6311221122741699
+    },
+    {
+      "id": "photosynthesis",
+      "neutral_score": 1.5189777612686157,
+      "confused_score": 1.5385282039642334,
+      "delta_confused_minus_neutral": 0.019550442695617676
+    },
+    {
+      "id": "recursion",
+      "neutral_score": 1.3567020893096924,
+      "confused_score": 1.2366268634796143,
+      "delta_confused_minus_neutral": -0.12007522583007812
+    },
+    {
+      "id": "velocity",
+      "neutral_score": 0.8945030570030212,
+      "confused_score": 1.578721046447754,
+      "delta_confused_minus_neutral": 0.6842179894447327
+    }
+  ]
+}

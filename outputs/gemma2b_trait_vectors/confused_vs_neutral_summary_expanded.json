@@ -1,0 +1,125 @@
+{
+  "num_pairs": 19,
+  "neutral_mean": 0.8903238616491619,
+  "confused_mean": 1.3045082625589872,
+  "mean_delta_confused_minus_neutral": 0.4141844009098254,
+  "median_delta_confused_minus_neutral": 0.23392486572265625,
+  "num_positive": 15,
+  "num_negative": 4,
+  "results": [
+    {
+      "id": "backprop",
+      "neutral_score": 1.6236975193023682,
+      "confused_score": 1.5833759307861328,
+      "delta_confused_minus_neutral": -0.04032158851623535
+    },
+    {
+      "id": "budget",
+      "neutral_score": 1.4301536083221436,
+      "confused_score": 1.6385092735290527,
+      "delta_confused_minus_neutral": 0.20835566520690918
+    },
+    {
+      "id": "photosynthesis",
+      "neutral_score": 1.4772284030914307,
+      "confused_score": 1.5810513496398926,
+      "delta_confused_minus_neutral": 0.10382294654846191
+    },
+    {
+      "id": "recursion",
+      "neutral_score": 1.4795074462890625,
+      "confused_score": 1.3203363418579102,
+      "delta_confused_minus_neutral": -0.15917110443115234
+    },
+    {
+      "id": "velocity",
+      "neutral_score": 0.6734123229980469,
+      "confused_score": 1.5633409023284912,
+      "delta_confused_minus_neutral": 0.8899285793304443
+    },
+    {
+      "id": "fractions",
+      "neutral_score": 1.4948606491088867,
+      "confused_score": 1.728785514831543,
+      "delta_confused_minus_neutral": 0.23392486572265625
+    },
+    {
+      "id": "gradient",
+      "neutral_score": 1.265244960784912,
+      "confused_score": 1.2846994400024414,
+      "delta_confused_minus_neutral": 0.019454479217529297
+    },
+    {
+      "id": "binary_search",
+      "neutral_score": 1.3651971817016602,
+      "confused_score": 1.3681790828704834,
+      "delta_confused_minus_neutral": 0.002981901168823242
+    },
+    {
+      "id": "probability",
+      "neutral_score": 1.2301685810089111,
+      "confused_score": 1.390395164489746,
+      "delta_confused_minus_neutral": 0.16022658348083496
+    },
+    {
+      "id": "derivative",
+      "neutral_score": 1.1468896865844727,
+      "confused_score": 1.4500055313110352,
+      "delta_confused_minus_neutral": 0.3031158447265625
+    },
+    {
+      "id": "roman_empire",
+      "neutral_score": -0.08077192306518555,
+      "confused_score": 1.0737618207931519,
+      "delta_confused_minus_neutral": 1.1545337438583374
+    },
+    {
+      "id": "french_revolution",
+      "neutral_score": -0.08739197254180908,
+      "confused_score": 1.2949635982513428,
+      "delta_confused_minus_neutral": 1.3823555707931519
+    },
+    {
+      "id": "napoleon",
+      "neutral_score": 0.6642835140228271,
+      "confused_score": 0.9807131290435791,
+      "delta_confused_minus_neutral": 0.31642961502075195
+    },
+    {
+      "id": "hamlet",
+      "neutral_score": -0.8898270130157471,
+      "confused_score": 0.9179304838180542,
+      "delta_confused_minus_neutral": 1.8077574968338013
+    },
+    {
+      "id": "animal_farm",
+      "neutral_score": 0.6155074834823608,
+      "confused_score": 0.5891576409339905,
+      "delta_confused_minus_neutral": -0.02634984254837036
+    },
+    {
+      "id": "tragic_irony",
+      "neutral_score": 0.769608736038208,
+      "confused_score": 0.6617723703384399,
+      "delta_confused_minus_neutral": -0.10783636569976807
+    },
+    {
+      "id": "stoicism",
+      "neutral_score": 1.565603256225586,
+      "confused_score": 1.87843656539917,
+      "delta_confused_minus_neutral": 0.312833309173584
+    },
+    {
+      "id": "memento_mori",
+      "neutral_score": -0.2598441243171692,
+      "confused_score": 0.6783534288406372,
+      "delta_confused_minus_neutral": 0.9381975531578064
+    },
+    {
+      "id": "virtue_vs_utilitarianism",
+      "neutral_score": 1.4326250553131104,
+      "confused_score": 1.801889419555664,
+      "delta_confused_minus_neutral": 0.3692643642425537
+    }
+  ]
+}

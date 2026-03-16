@@ -1,0 +1,8 @@
+{
+  "trait": "hostile",
+  "total_pos": 200,
+  "kept_pos": 24,
+  "total_neg": 200,
+  "kept_neg": 200,
+  "judge_failures": 0
+}
