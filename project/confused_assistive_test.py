@@ -3,39 +3,48 @@ import os
 import statistics
 from pathlib import Path
 
-import numpy as np
-
-from assistant_axis import (
-    load_model,
-    get_config,
-    compute_axis,
-    extract_response_activations,
-    project,
-    generate_response,
-)
+import torch
+import torch.nn.functional as F
+from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 
 MODEL_NAME = "google/gemma-2b-it"
 OUT_DIR = Path("outputs/confused_assistive")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-ASSISTIVE_SYSTEM = (
-    "You are a highly helpful, patient, supportive assistant. "
-    "You explain things clearly, step by step, and adapt to confusion."
+os.environ.setdefault("USER", "rozkosz")
+os.environ.setdefault("LOGNAME", "rozkosz")
+
+ASSISTIVE_STYLE = (
+    "You are highly helpful, patient, supportive, and adaptive to confusion. "
+    "You explain things clearly, step by step, with simple language and helpful examples."
 )
 
-NONASSISTIVE_SYSTEM = (
+NONASSISTIVE_STYLE = (
     "You are terse, impatient, minimally helpful, and do not elaborate unless necessary. "
-    "You do not adapt to user confusion."
+    "You do not adapt to confusion and avoid adding examples or step-by-step explanations."
 )
 
-NEUTRAL_SYSTEM = "You are a helpful assistant."
+NEUTRAL_STYLE = "You are a helpful assistant."
 
 SEED_TASKS = [
+    # original STEM / practical
     "Explain how backpropagation works.",
     "Help me understand what a budget is.",
     "Explain photosynthesis simply.",
     "What is the difference between speed and velocity?",
     "How does recursion work in programming?",
+    # new history
+    "Explain why the Roman Empire fell.",
+    "What caused the French Revolution?",
+    "Who was Napoleon and why is he important?",
+    # new literature
+    "What is the main theme of Hamlet?",
+    "Explain the meaning of allegory in Animal Farm.",
+    "What is tragic irony in literature?",
+    # new philosophy
+    "What is Stoicism?",
+    "What does memento mori mean?",
+    "What is the difference between virtue ethics and utilitarianism?",
 ]
 
 EVAL_PAIRS = [
@@ -89,117 +98,205 @@ EVAL_PAIRS = [
         "neutral": "What is a derivative?",
         "confused": "Derivatives are really confusing to me. Can you explain what they mean, slowly and simply?",
     },
+    # history
+    {
+        "id": "roman_empire",
+        "neutral": "Why did the Roman Empire fall?",
+        "confused": "I'm confused about why the Roman Empire fell. Can you explain it step by step in simple terms?",
+    },
+    {
+        "id": "french_revolution",
+        "neutral": "What caused the French Revolution?",
+        "confused": "I'm struggling to understand the causes of the French Revolution. Can you explain them clearly and simply?",
+    },
+    {
+        "id": "napoleon",
+        "neutral": "Who was Napoleon and why is he important?",
+        "confused": "I'm a bit lost about Napoleon. Can you explain who he was and why he mattered, in simple language?",
+    },
+    # literature
+    {
+        "id": "hamlet",
+        "neutral": "What is the main theme of Hamlet?",
+        "confused": "I'm confused about Hamlet. Can you explain its main themes clearly and with simple examples?",
+    },
+    {
+        "id": "animal_farm",
+        "neutral": "What does allegory mean in Animal Farm?",
+        "confused": "I don't really understand allegory in Animal Farm. Can you explain it slowly and simply?",
+    },
+    {
+        "id": "tragic_irony",
+        "neutral": "What is tragic irony in literature?",
+        "confused": "I'm confused about tragic irony. Can you explain it clearly with an easy example?",
+    },
+    # philosophy
+    {
+        "id": "stoicism",
+        "neutral": "What is Stoicism?",
+        "confused": "I'm confused about Stoicism. Can you explain it simply and step by step?",
+    },
+    {
+        "id": "memento_mori",
+        "neutral": "What does memento mori mean?",
+        "confused": "I don't really understand memento mori. Can you explain what it means in simple words?",
+    },
+    {
+        "id": "virtue_vs_utilitarianism",
+        "neutral": "What is the difference between virtue ethics and utilitarianism?",
+        "confused": "I'm struggling to understand the difference between virtue ethics and utilitarianism. Can you explain it clearly and simply?",
+    },
 ]
 
-def make_conversation(system_prompt: str, user_prompt: str):
-    return [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt},
-    ]
 
-def run_generation(model, tokenizer, conversation):
-    response = generate_response(model, tokenizer, conversation)
-    if isinstance(response, str):
-        text = response
-    elif isinstance(response, list) and len(response) > 0 and isinstance(response[-1], dict):
-        text = response[-1].get("content", "")
-    else:
-        text = str(response)
+def build_prompt(style: str, user_prompt: str) -> str:
+    return f"{style}\n\n{user_prompt}"
 
-    return conversation + [{"role": "assistant", "content": text}]
 
-def mean_projection(acts, axis, layer):
-    vals = [float(project(act, axis, layer=layer)) for act in acts]
-    return vals, float(statistics.mean(vals))
+def generate_text(model, tokenizer, style: str, user_prompt: str, max_new_tokens: int = 220) -> str:
+    prompt = build_prompt(style, user_prompt)
+    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1024).to(model.device)
+
+    with torch.no_grad():
+        output_ids = model.generate(
+            **inputs,
+            max_new_tokens=max_new_tokens,
+            do_sample=False,
+            pad_token_id=tokenizer.eos_token_id,
+        )
+
+    new_tokens = output_ids[0, inputs["input_ids"].shape[1]:]
+    return tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+
+
+def response_vector(model, tokenizer, text: str, layer_idx: int) -> torch.Tensor:
+    inputs = tokenizer(
+        text,
+        return_tensors="pt",
+        truncation=True,
+        max_length=1024,
+        padding=False,
+    ).to(model.device)
+
+    with torch.no_grad():
+        out = model(**inputs, output_hidden_states=True)
+
+    hidden = out.hidden_states[layer_idx]      # [1, seq, dim]
+    vec = hidden.mean(dim=1).squeeze(0).float().cpu()
+    return vec
+
 
 def main():
-    os.environ.setdefault("USER", "rozkosz")
-    os.environ.setdefault("LOGNAME", "rozkosz")
-
     print(f"Loading model: {MODEL_NAME}")
-    model, tokenizer = load_model(MODEL_NAME)
-    config = get_config(MODEL_NAME)
-    layer = config["target_layer"]
-    print(f"Using target layer: {layer}")
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    model = AutoModelForCausalLM.from_pretrained(
+        MODEL_NAME,
+        torch_dtype=torch.float16,
+        device_map="auto",
+    )
+    model.eval()
 
-    # 1) Build assistive vs non-assistive seed conversations
-    assistive_convs = []
-    nonassistive_convs = []
+    cfg = AutoConfig.from_pretrained(MODEL_NAME)
+    n_layers = cfg.num_hidden_layers
+    layer = n_layers // 2
+    print(f"Using middle hidden layer: {layer} / {n_layers}")
 
+    # 1) Build independent assistive vs nonassistive seed generations
+    assistive_seed_rows = []
+    nonassistive_seed_rows = []
+
+    print("Generating seed responses...")
     for task in SEED_TASKS:
-        assistive_convs.append(
-            run_generation(model, tokenizer, make_conversation(ASSISTIVE_SYSTEM, task))
-        )
-        nonassistive_convs.append(
-            run_generation(model, tokenizer, make_conversation(NONASSISTIVE_SYSTEM, task))
-        )
+        a_text = generate_text(model, tokenizer, ASSISTIVE_STYLE, task)
+        n_text = generate_text(model, tokenizer, NONASSISTIVE_STYLE, task)
 
-    # Save seed generations
+        assistive_seed_rows.append({"task": task, "response": a_text})
+        nonassistive_seed_rows.append({"task": task, "response": n_text})
+
     with open(OUT_DIR / "seed_generations.jsonl", "w") as f:
-        for row in assistive_convs:
-            f.write(json.dumps({"type": "assistive_seed", "conversation": row}) + "\n")
-        for row in nonassistive_convs:
-            f.write(json.dumps({"type": "nonassistive_seed", "conversation": row}) + "\n")
+        for row in assistive_seed_rows:
+            f.write(json.dumps({"type": "assistive_seed", **row}) + "\n")
+        for row in nonassistive_seed_rows:
+            f.write(json.dumps({"type": "nonassistive_seed", **row}) + "\n")
 
-    # 2) Extract seed activations and build axis
-    assistive_acts = extract_response_activations(model, tokenizer, assistive_convs)
-    nonassistive_acts = extract_response_activations(model, tokenizer, nonassistive_convs)
+    # 2) Extract seed activations and build assistiveness axis
+    print("Extracting seed activations...")
+    assistive_vecs = torch.stack([
+        response_vector(model, tokenizer, row["response"], layer)
+        for row in assistive_seed_rows
+    ])
+    nonassistive_vecs = torch.stack([
+        response_vector(model, tokenizer, row["response"], layer)
+        for row in nonassistive_seed_rows
+    ])
 
-    assistive_acts = np.stack(assistive_acts)
-    nonassistive_acts = np.stack(nonassistive_acts)
+    assistive_mean = assistive_vecs.mean(dim=0)
+    nonassistive_mean = nonassistive_vecs.mean(dim=0)
+    assistiveness_axis = F.normalize(assistive_mean - nonassistive_mean, dim=0)
 
-    # Positive direction = more assistive
-    assistiveness_axis = compute_axis(
-        role_activations=nonassistive_acts,
-        default_activations=assistive_acts,
+    torch.save(
+        {
+            "layer": layer,
+            "assistive_mean": assistive_mean,
+            "nonassistive_mean": nonassistive_mean,
+            "assistiveness_axis": assistiveness_axis,
+        },
+        OUT_DIR / "assistiveness_axis.pt",
     )
 
-    np.save(OUT_DIR / "assistiveness_axis.npy", assistiveness_axis)
-
-    # 3) Run neutral vs confused evaluation
-    rows = []
-    neutral_convs = []
-    confused_convs = []
+    # 3) Generate neutral vs confused evaluation responses
+    print("Generating evaluation responses...")
+    eval_rows = []
+    neutral_vecs = []
+    confused_vecs = []
 
     for pair in EVAL_PAIRS:
-        n_conv = run_generation(model, tokenizer, make_conversation(NEUTRAL_SYSTEM, pair["neutral"]))
-        c_conv = run_generation(model, tokenizer, make_conversation(NEUTRAL_SYSTEM, pair["confused"]))
-        neutral_convs.append(n_conv)
-        confused_convs.append(c_conv)
+        neutral_text = generate_text(model, tokenizer, NEUTRAL_STYLE, pair["neutral"])
+        confused_text = generate_text(model, tokenizer, NEUTRAL_STYLE, pair["confused"])
 
-        rows.append({
+        n_vec = response_vector(model, tokenizer, neutral_text, layer)
+        c_vec = response_vector(model, tokenizer, confused_text, layer)
+
+        neutral_score = torch.dot(n_vec, assistiveness_axis).item()
+        confused_score = torch.dot(c_vec, assistiveness_axis).item()
+
+        neutral_vecs.append(neutral_score)
+        confused_vecs.append(confused_score)
+
+        eval_rows.append({
             "id": pair["id"],
-            "neutral_conversation": n_conv,
-            "confused_conversation": c_conv,
+            "neutral_prompt": pair["neutral"],
+            "confused_prompt": pair["confused"],
+            "neutral_response": neutral_text,
+            "confused_response": confused_text,
+            "neutral_score": neutral_score,
+            "confused_score": confused_score,
+            "delta_confused_minus_neutral": confused_score - neutral_score,
         })
 
     with open(OUT_DIR / "eval_generations.jsonl", "w") as f:
-        for row in rows:
+        for row in eval_rows:
             f.write(json.dumps(row) + "\n")
-
-    # 4) Extract activations and project onto assistiveness axis
-    neutral_acts = extract_response_activations(model, tokenizer, neutral_convs)
-    confused_acts = extract_response_activations(model, tokenizer, confused_convs)
-
-    neutral_scores, neutral_mean = mean_projection(neutral_acts, assistiveness_axis, layer)
-    confused_scores, confused_mean = mean_projection(confused_acts, assistiveness_axis, layer)
-
-    results = []
-    for pair, ns, cs in zip(EVAL_PAIRS, neutral_scores, confused_scores):
-        results.append({
-            "id": pair["id"],
-            "neutral_score": ns,
-            "confused_score": cs,
-            "delta_confused_minus_neutral": cs - ns,
-        })
 
     summary = {
         "model": MODEL_NAME,
         "layer": layer,
-        "neutral_mean": neutral_mean,
-        "confused_mean": confused_mean,
-        "mean_delta_confused_minus_neutral": confused_mean - neutral_mean,
-        "results": results,
+        "num_seed_tasks": len(SEED_TASKS),
+        "num_eval_pairs": len(EVAL_PAIRS),
+        "neutral_mean": float(statistics.mean(neutral_vecs)),
+        "confused_mean": float(statistics.mean(confused_vecs)),
+        "mean_delta_confused_minus_neutral": float(
+            statistics.mean([r["delta_confused_minus_neutral"] for r in eval_rows])
+        ),
+        "results": [
+            {
+                "id": r["id"],
+                "neutral_score": r["neutral_score"],
+                "confused_score": r["confused_score"],
+                "delta_confused_minus_neutral": r["delta_confused_minus_neutral"],
+            }
+            for r in eval_rows
+        ],
     }
 
     with open(OUT_DIR / "summary.json", "w") as f:
@@ -207,6 +304,7 @@ def main():
 
     print("\n=== SUMMARY ===")
     print(json.dumps(summary, indent=2))
+
 
 if __name__ == "__main__":
     main()
