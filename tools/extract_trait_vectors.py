@@ -122,8 +122,7 @@ def generate_and_collect(
     Returns (response_text, {layer_idx: mean_act tensor (hidden_dim,)})
     """
     messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user",   "content": question},
+    {"role": "user", "content": f"{system_prompt}\n\n{question}"},
     ]
     prompt_ids = tokenizer.apply_chat_template(
         messages, add_generation_prompt=True, return_tensors="pt"
