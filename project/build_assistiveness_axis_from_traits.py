@@ -9,7 +9,7 @@ supportive = torch.load(in_dir / "supportive.pt")
 hostile = torch.load(in_dir / "hostile.pt")
 
 axis = supportive - hostile
-axis = F.normalize(axis, dim=0)
+axis = F.normalize(axis, dim=-1, eps=1e-8)
 
 torch.save(
     {
