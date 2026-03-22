@@ -8,7 +8,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 os.environ.setdefault("USER", "rozkosz")
 os.environ.setdefault("LOGNAME", "rozkosz")
 
-MODEL_NAME = "google/gemma-2b-it"
+MODEL_NAME = "meta-llama/Llama-3.3-70B-Instruct"
 RESP_FILE = "outputs/confused_assistive/eval_generations.jsonl"
 AXIS_FILE = "outputs/gemma2b_trait_vectors/assistiveness_axis.pt"
 OUT_FILE = "outputs/gemma2b_trait_vectors/confused_vs_neutral_summary_expanded.json"

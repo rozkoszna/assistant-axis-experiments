@@ -3,7 +3,7 @@ from pathlib import Path
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 
-MODEL = "google/gemma-2b-it"
+MODEL = "meta-llama/Llama-3.3-70B-Instruct"
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL)
 model = AutoModelForCausalLM.from_pretrained(
