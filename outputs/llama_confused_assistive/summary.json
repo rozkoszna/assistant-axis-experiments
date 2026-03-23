@@ -1,0 +1,166 @@
+{
+  "model": "meta-llama/Llama-3.1-8B-Instruct",
+  "layer": 16,
+  "num_seed_tasks": 14,
+  "num_eval_pairs": 19,
+  "neutral_mean": -2.041009030844036,
+  "confused_mean": -2.0034936603746916,
+  "frustrated_mean": -2.007408280121653,
+  "mean_delta_confused_minus_neutral": 0.03751537046934429,
+  "mean_delta_frustrated_minus_neutral": 0.0336007507223832,
+  "mean_delta_frustrated_minus_confused": -0.003914619746961091,
+  "results": [
+    {
+      "id": "backprop",
+      "neutral_score": -2.1001505851745605,
+      "confused_score": -2.0527076721191406,
+      "frustrated_score": -2.030409812927246,
+      "delta_confused_minus_neutral": 0.04744291305541992,
+      "delta_frustrated_minus_neutral": 0.06974077224731445
+    },
+    {
+      "id": "budget",
+      "neutral_score": -2.0076513290405273,
+      "confused_score": -1.9854440689086914,
+      "frustrated_score": -1.9787322282791138,
+      "delta_confused_minus_neutral": 0.022207260131835938,
+      "delta_frustrated_minus_neutral": 0.028919100761413574
+    },
+    {
+      "id": "photosynthesis",
+      "neutral_score": -2.01301908493042,
+      "confused_score": -2.0664005279541016,
+      "frustrated_score": -2.068434953689575,
+      "delta_confused_minus_neutral": -0.05338144302368164,
+      "delta_frustrated_minus_neutral": -0.05541586875915527
+    },
+    {
+      "id": "recursion",
+      "neutral_score": -2.0755820274353027,
+      "confused_score": -2.061429023742676,
+      "frustrated_score": -2.063122034072876,
+      "delta_confused_minus_neutral": 0.014153003692626953,
+      "delta_frustrated_minus_neutral": 0.012459993362426758
+    },
+    {
+      "id": "velocity",
+      "neutral_score": -1.9996353387832642,
+      "confused_score": -1.984405755996704,
+      "frustrated_score": -2.0190868377685547,
+      "delta_confused_minus_neutral": 0.015229582786560059,
+      "delta_frustrated_minus_neutral": -0.019451498985290527
+    },
+    {
+      "id": "fractions",
+      "neutral_score": -2.0069878101348877,
+      "confused_score": -2.0055692195892334,
+      "frustrated_score": -2.039179801940918,
+      "delta_confused_minus_neutral": 0.0014185905456542969,
+      "delta_frustrated_minus_neutral": -0.03219199180603027
+    },
+    {
+      "id": "gradient",
+      "neutral_score": -2.0882983207702637,
+      "confused_score": -2.1404523849487305,
+      "frustrated_score": -2.0872039794921875,
+      "delta_confused_minus_neutral": -0.0521540641784668,
+      "delta_frustrated_minus_neutral": 0.0010943412780761719
+    },
+    {
+      "id": "binary_search",
+      "neutral_score": -2.118699312210083,
+      "confused_score": -2.0568675994873047,
+      "frustrated_score": -2.0123214721679688,
+      "delta_confused_minus_neutral": 0.06183171272277832,
+      "delta_frustrated_minus_neutral": 0.10637784004211426
+    },
+    {
+      "id": "probability",
+      "neutral_score": -2.0422863960266113,
+      "confused_score": -1.9579486846923828,
+      "frustrated_score": -1.988032341003418,
+      "delta_confused_minus_neutral": 0.08433771133422852,
+      "delta_frustrated_minus_neutral": 0.05425405502319336
+    },
+    {
+      "id": "derivative",
+      "neutral_score": -2.0665154457092285,
+      "confused_score": -2.0386929512023926,
+      "frustrated_score": -2.0664196014404297,
+      "delta_confused_minus_neutral": 0.027822494506835938,
+      "delta_frustrated_minus_neutral": 9.584426879882812e-05
+    },
+    {
+      "id": "roman_empire",
+      "neutral_score": -2.026904344558716,
+      "confused_score": -1.9502294063568115,
+      "frustrated_score": -1.9488465785980225,
+      "delta_confused_minus_neutral": 0.0766749382019043,
+      "delta_frustrated_minus_neutral": 0.07805776596069336
+    },
+    {
+      "id": "french_revolution",
+      "neutral_score": -1.9442641735076904,
+      "confused_score": -1.9390896558761597,
+      "frustrated_score": -1.8882367610931396,
+      "delta_confused_minus_neutral": 0.005174517631530762,
+      "delta_frustrated_minus_neutral": 0.05602741241455078
+    },
+    {
+      "id": "napoleon",
+      "neutral_score": -2.0174176692962646,
+      "confused_score": -1.9757472276687622,
+      "frustrated_score": -2.01170015335083,
+      "delta_confused_minus_neutral": 0.04167044162750244,
+      "delta_frustrated_minus_neutral": 0.00571751594543457
+    },
+    {
+      "id": "hamlet",
+      "neutral_score": -2.071709394454956,
+      "confused_score": -1.9748284816741943,
+      "frustrated_score": -2.0262861251831055,
+      "delta_confused_minus_neutral": 0.09688091278076172,
+      "delta_frustrated_minus_neutral": 0.045423269271850586
+    },
+    {
+      "id": "animal_farm",
+      "neutral_score": -2.0144925117492676,
+      "confused_score": -1.9378907680511475,
+      "frustrated_score": -1.9389512538909912,
+      "delta_confused_minus_neutral": 0.07660174369812012,
+      "delta_frustrated_minus_neutral": 0.07554125785827637
+    },
+    {
+      "id": "tragic_irony",
+      "neutral_score": -2.0761611461639404,
+      "confused_score": -1.9720652103424072,
+      "frustrated_score": -2.018676280975342,
+      "delta_confused_minus_neutral": 0.1040959358215332,
+      "delta_frustrated_minus_neutral": 0.05748486518859863
+    },
+    {
+      "id": "stoicism",
+      "neutral_score": -2.0462892055511475,
+      "confused_score": -2.0095202922821045,
+      "frustrated_score": -2.003173589706421,
+      "delta_confused_minus_neutral": 0.03676891326904297,
+      "delta_frustrated_minus_neutral": 0.04311561584472656
+    },
+    {
+      "id": "memento_mori",
+      "neutral_score": -2.0516910552978516,
+      "confused_score": -1.941519021987915,
+      "frustrated_score": -1.937700867652893,
+      "delta_confused_minus_neutral": 0.11017203330993652,
+      "delta_frustrated_minus_neutral": 0.1139901876449585
+    },
+    {
+      "id": "virtue_vs_utilitarianism",
+      "neutral_score": -2.011416435241699,
+      "confused_score": -2.0155715942382812,
+      "frustrated_score": -2.014242649078369,
+      "delta_confused_minus_neutral": -0.004155158996582031,
+      "delta_frustrated_minus_neutral": -0.002826213836669922
+    }
+  ]
+}
