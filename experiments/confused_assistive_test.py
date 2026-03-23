@@ -26,6 +26,27 @@ NONASSISTIVE_STYLE = (
 
 NEUTRAL_STYLE = "You are a helpful assistant."
 
+SEED_TASKS = [
+    # STEM / practical
+    "Explain how backpropagation works.",
+    "Help me understand what a budget is.",
+    "Explain photosynthesis simply.",
+    "What is the difference between speed and velocity?",
+    "How does recursion work in programming?",
+    # history
+    "Explain why the Roman Empire fell.",
+    "What caused the French Revolution?",
+    "Who was Napoleon and why is he important?",
+    # literature
+    "What is the main theme of Hamlet?",
+    "Explain the meaning of allegory in Animal Farm.",
+    "What is tragic irony in literature?",
+    # philosophy
+    "What is Stoicism?",
+    "What does memento mori mean?",
+    "What is the difference between virtue ethics and utilitarianism?",
+]
+
 EVAL_PAIRS = [
     {
         "id": "backprop",
