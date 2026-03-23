@@ -3,9 +3,11 @@ from pathlib import Path
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 
-MODEL = "meta-llama/Llama-3.3-70B-Instruct"
+MODEL = "google/gemma-2b-it"
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL)
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
 model = AutoModelForCausalLM.from_pretrained(
     MODEL,
     torch_dtype=torch.float16,
@@ -23,15 +25,23 @@ with open(inp_file) as f, open(out_file,"w") as out:
 
         prompt = item["prompt"]
 
-        inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+        messages = [{"role": "user", "content": prompt}]
+        input_ids = tokenizer.apply_chat_template(
+            messages,
+            tokenize=True,
+            add_generation_prompt=True,
+            return_tensors="pt",
+        ).to(model.device)
 
         with torch.no_grad():
             out_tokens = model.generate(
-                **inputs,
-                max_new_tokens=200
+                input_ids=input_ids,
+                max_new_tokens=200,
+                pad_token_id=tokenizer.pad_token_id
             )
 
-        text = tokenizer.decode(out_tokens[0], skip_special_tokens=True)
+        new_tokens = out_tokens[0, input_ids.shape[1]:]
+        text = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
 
         out.write(json.dumps({
             "id": item["id"],

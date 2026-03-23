@@ -8,17 +8,19 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 os.environ.setdefault("USER", "rozkosz")
 os.environ.setdefault("LOGNAME", "rozkosz")
 
-MODEL_NAME = "meta-llama/Llama-3.3-70B-Instruct"
+MODEL_NAME = "google/gemma-2b-it"
 RESP_FILE = "outputs/confused_assistive/eval_generations.jsonl"
 AXIS_FILE = "outputs/gemma2b_trait_vectors/assistiveness_axis.pt"
 OUT_FILE = "outputs/gemma2b_trait_vectors/confused_vs_neutral_summary_expanded.json"
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
+
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
     torch_dtype=torch.float16,
-    device_map="auto",
-    output_hidden_states=True
+    device_map="auto"
 )
 model.eval()
 
@@ -35,7 +37,7 @@ def response_vector(text: str):
     ).to(model.device)
 
     with torch.no_grad():
-        out = model(**inputs)
+        out = model(**inputs, output_hidden_states=True)
 
     hidden = out.hidden_states[9]
     vec = hidden.mean(dim=1).squeeze(0).float().cpu()
@@ -49,29 +51,48 @@ with open(RESP_FILE) as f:
 
         neutral_vec = response_vector(row["neutral_response"])
         confused_vec = response_vector(row["confused_response"])
+        frustrated_vec = response_vector(row["frustrated_response"])
 
         neutral_score = torch.dot(neutral_vec, axis).item()
         confused_score = torch.dot(confused_vec, axis).item()
+        frustrated_score = torch.dot(frustrated_vec, axis).item()
 
         results.append({
             "id": row["id"],
             "neutral_score": neutral_score,
             "confused_score": confused_score,
+            "frustrated_score": frustrated_score,
             "delta_confused_minus_neutral": confused_score - neutral_score,
+            "delta_frustrated_minus_confused": frustrated_score - confused_score
         })
 
 summary = {
     "num_pairs": len(results),
     "neutral_mean": statistics.mean(r["neutral_score"] for r in results),
     "confused_mean": statistics.mean(r["confused_score"] for r in results),
+    "frustrated_mean": statistics.mean(r["frustrated_score"] for r in results),
     "mean_delta_confused_minus_neutral": statistics.mean(
         r["delta_confused_minus_neutral"] for r in results
     ),
     "median_delta_confused_minus_neutral": statistics.median(
         r["delta_confused_minus_neutral"] for r in results
     ),
-    "num_positive": sum(r["delta_confused_minus_neutral"] > 0 for r in results),
-    "num_negative": sum(r["delta_confused_minus_neutral"] < 0 for r in results),
+    "mean_delta_frustrated_minus_neutral": statistics.mean(
+        r["delta_frustrated_minus_neutral"] for r in results
+    ),
+    "median_delta_frustrated_minus_neutral": statistics.median(
+        r["delta_frustrated_minus_neutral"] for r in results
+    ),
+    "mean_delta_frustrated_minus_confused": statistics.mean(
+        r["delta_frustrated_minus_confused"] for r in results
+    ),
+    "median_delta_frustrated_minus_confused": statistics.median(
+        r["delta_frustrated_minus_confused"] for r in results
+    ),
+    "num_confused_positive": sum(r["delta_confused_minus_neutral"] > 0 for r in results),
+    "num_confused_negative": sum(r["delta_confused_minus_neutral"] < 0 for r in results),
+    "num_frustrated_positive": sum(r["delta_frustrated_minus_neutral"] > 0 for r in results),
+    "num_frustrated_negative": sum(r["delta_frustrated_minus_neutral"] < 0 for r in results),
     "results": results,
 }
 

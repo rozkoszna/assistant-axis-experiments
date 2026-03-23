@@ -17,11 +17,12 @@ os.environ.setdefault("LOGNAME", "rozkosz")
 
 print("Loading model...")
 tokenizer = AutoTokenizer.from_pretrained(MODEL)
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
 model = AutoModelForCausalLM.from_pretrained(
     MODEL,
     torch_dtype=torch.float16,
-    device_map="auto",
-    output_hidden_states=True
+    device_map="auto"
 )
 model.eval()
 
@@ -34,7 +35,7 @@ def response_vector(text: str):
     ).to(model.device)
 
     with torch.no_grad():
-        out = model(**inputs)
+        out = model(**inputs, output_hidden_states=True)
 
     # Last hidden layer, mean pooled over tokens
     hidden = out.hidden_states[-1]      # [1, seq, dim]
@@ -43,6 +44,7 @@ def response_vector(text: str):
 
 neutral = {}
 confused = {}
+frustrated = {}
 
 print("Reading responses...")
 with open(RESP_FILE) as f:
@@ -59,8 +61,11 @@ with open(RESP_FILE) as f:
         elif rid.endswith("_confused"):
             base = rid[:-9]
             confused[base] = {"id": rid, "vec": vec}
+        elif rid.endswith("_frustrated"):
+            base = rid[:-11]
+            frustrated[base] = {"id": rid, "vec": vec}
 
-common = sorted(set(neutral) & set(confused))
+common = sorted(set(neutral) & set(confused) & set(frustrated))
 if not common:
     raise ValueError("No matching neutral/confused pairs found.")
 
@@ -90,18 +95,24 @@ results = []
 for k in common:
     n_proj = torch.dot(neutral[k]["vec"], confused_minus_neutral).item()
     c_proj = torch.dot(confused[k]["vec"], confused_minus_neutral).item()
+    f_proj = torch.dot(frustrated[k]["vec"], confused_minus_neutral).item()
+
     results.append({
         "id": k,
         "neutral_projection": n_proj,
         "confused_projection": c_proj,
+        "frustrated_projection": f_proj,
         "delta_confused_minus_neutral": c_proj - n_proj,
+        "delta_frustrated_minus_neutral": f_proj - n_proj,
     })
 
 summary = {
     "num_pairs": len(common),
     "mean_neutral_projection": mean(r["neutral_projection"] for r in results),
     "mean_confused_projection": mean(r["confused_projection"] for r in results),
+    "mean_frustrated_projection": mean(r["frustrated_projection"] for r in results),
     "mean_delta_confused_minus_neutral": mean(r["delta_confused_minus_neutral"] for r in results),
+    "mean_delta_frustrated_minus_neutral": mean(r["delta_frustrated_minus_neutral"] for r in results),
     "results": results,
 }
 

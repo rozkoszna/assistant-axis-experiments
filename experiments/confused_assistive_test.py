@@ -5,7 +5,7 @@ from pathlib import Path
 
 import torch
 import torch.nn.functional as F
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
 MODEL_NAME = "google/gemma-2b-it"
 OUT_DIR = Path("outputs/confused_assistive")
@@ -27,145 +27,165 @@ NONASSISTIVE_STYLE = (
 NEUTRAL_STYLE = "You are a helpful assistant."
 
 SEED_TASKS = [
-    # original STEM / practical
+    # STEM / practical
     "Explain how backpropagation works.",
     "Help me understand what a budget is.",
     "Explain photosynthesis simply.",
     "What is the difference between speed and velocity?",
     "How does recursion work in programming?",
-    # new history
+    # history
     "Explain why the Roman Empire fell.",
     "What caused the French Revolution?",
     "Who was Napoleon and why is he important?",
-    # new literature
+    # literature
     "What is the main theme of Hamlet?",
     "Explain the meaning of allegory in Animal Farm.",
     "What is tragic irony in literature?",
-    # new philosophy
+    # philosophy
     "What is Stoicism?",
     "What does memento mori mean?",
     "What is the difference between virtue ethics and utilitarianism?",
 ]
+
 
 EVAL_PAIRS = [
     {
         "id": "backprop",
         "neutral": "Explain how backpropagation works.",
         "confused": "I'm really confused about backpropagation. Can you explain it simply and step by step?",
+        "frustrated": "I'm so incredibly frustrated with backpropagation. I've tried everything to understand it, and I'm still completely lost. Please explain it in the simplest way possible, step by step."
     },
     {
         "id": "budget",
         "neutral": "What is a budget?",
         "confused": "I'm overwhelmed and confused about money. What is a budget, in very simple terms?",
+        "frustrated": "I'm really frustrated with money stuff. Budgets always confuse me, and I feel completely stuck. Please explain what a budget is in the simplest way imaginable."
     },
     {
         "id": "photosynthesis",
         "neutral": "Explain photosynthesis.",
         "confused": "I'm confused about photosynthesis. Could you explain it slowly and clearly?",
+        "frustrated": "I'm getting really frustrated trying to understand photosynthesis! No matter how many times I read about it, it still makes no sense. Can you break it down very simply and clearly?"
     },
     {
         "id": "recursion",
         "neutral": "How does recursion work?",
         "confused": "Recursion keeps confusing me. Can you explain it step by step with intuition?",
+        "frustrated": "I'm seriously frustrated by recursion! Every explanation just makes it more confusing. Please, can you explain it step by step in the simplest way possible?"
     },
     {
         "id": "velocity",
         "neutral": "What is the difference between speed and velocity?",
         "confused": "I keep mixing up speed and velocity. Can you explain the difference clearly?",
+        "frustrated": "I'm at my wit's end because I can never remember the difference between speed and velocity. It's so frustrating! Please explain it to me as clearly as you can."
     },
     {
         "id": "fractions",
         "neutral": "How do fractions work?",
         "confused": "Fractions make me feel lost. Can you explain them in a simple way?",
+        "frustrated": "Fractions are driving me absolutely crazy! I just can't get them, no matter how hard I try. Can you explain them in the simplest way possible?"
     },
     {
         "id": "gradient",
         "neutral": "What is a gradient in machine learning?",
         "confused": "I'm really struggling to understand gradients in machine learning. Please explain gently.",
+        "frustrated": "I'm honestly frustrated with gradients in machine learning! Every explanation feels so abstract and I can't grasp it at all. Please make it very clear and simple."
     },
     {
         "id": "binary_search",
         "neutral": "Explain binary search.",
         "confused": "Binary search is confusing me. Can you explain it step by step with a simple example?",
+        "frustrated": "I'm really frustrated with binary search! It never clicks for me, no matter how many times I try. Please explain it step by step with an extremely easy example."
     },
     {
         "id": "probability",
         "neutral": "What is probability?",
         "confused": "I'm confused about probability. Could you explain it in a very intuitive way?",
+        "frustrated": "Probability is making me feel utterly lost! I hear all these explanations, but nothing seems to make sense. Please make it very intuitive and simple."
     },
     {
         "id": "derivative",
         "neutral": "What is a derivative?",
         "confused": "Derivatives are really confusing to me. Can you explain what they mean, slowly and simply?",
+        "frustrated": "I'm so frustrated with derivatives! Every explanation sounds too technical and I just can't wrap my head around it. Please explain what a derivative means in the simplest way possible."
     },
-    # history
     {
         "id": "roman_empire",
         "neutral": "Why did the Roman Empire fall?",
         "confused": "I'm confused about why the Roman Empire fell. Can you explain it step by step in simple terms?",
+        "frustrated": "I'm really frustrated because I keep reading about the Roman Empire falling, and it just doesn't make sense to me! Please explain it simply and clearly, step by step."
     },
     {
         "id": "french_revolution",
         "neutral": "What caused the French Revolution?",
         "confused": "I'm struggling to understand the causes of the French Revolution. Can you explain them clearly and simply?",
+        "frustrated": "I'm getting so frustrated trying to understand the French Revolution! Every time I read about its causes, I just get more confused. Please explain it in a very clear, simple way."
     },
     {
         "id": "napoleon",
         "neutral": "Who was Napoleon and why is he important?",
         "confused": "I'm a bit lost about Napoleon. Can you explain who he was and why he mattered, in simple language?",
+        "frustrated": "I'm really frustrated because I keep hearing about Napoleon, but I still don't understand who he was and why he mattered. Please explain it simply and clearly."
     },
-    # literature
     {
         "id": "hamlet",
         "neutral": "What is the main theme of Hamlet?",
         "confused": "I'm confused about Hamlet. Can you explain its main themes clearly and with simple examples?",
+        "frustrated": "I'm so frustrated trying to understand Hamlet! It feels overly complicated, and I can't grasp its themes at all. Please explain the main themes clearly and simply."
     },
     {
         "id": "animal_farm",
         "neutral": "What does allegory mean in Animal Farm?",
         "confused": "I don't really understand allegory in Animal Farm. Can you explain it slowly and simply?",
+        "frustrated": "I'm really frustrated because I still don't get the allegory in Animal Farm! Every time I try to understand it, I just end up lost. Please explain it in the simplest, clearest way."
     },
     {
         "id": "tragic_irony",
         "neutral": "What is tragic irony in literature?",
         "confused": "I'm confused about tragic irony. Can you explain it clearly with an easy example?",
+        "frustrated": "Tragic irony is frustrating me so much! All the definitions sound vague, and I just can't get it. Please explain it clearly with a very easy example."
     },
-    # philosophy
     {
         "id": "stoicism",
         "neutral": "What is Stoicism?",
         "confused": "I'm confused about Stoicism. Can you explain it simply and step by step?",
+        "frustrated": "I'm really frustrated because Stoicism keeps sounding so abstract to me! No matter how much I read about it, I just can't understand. Please explain it simply and clearly."
     },
     {
         "id": "memento_mori",
         "neutral": "What does memento mori mean?",
         "confused": "I don't really understand memento mori. Can you explain what it means in simple words?",
+        "frustrated": "I'm so frustrated because people say memento mori all the time, and I still don't really get it. Please explain it simply and clearly!"
     },
     {
         "id": "virtue_vs_utilitarianism",
         "neutral": "What is the difference between virtue ethics and utilitarianism?",
         "confused": "I'm struggling to understand the difference between virtue ethics and utilitarianism. Can you explain it clearly and simply?",
-    },
+        "frustrated": "I'm really frustrated because virtue ethics and utilitarianism keep blending together in my head! It's so confusing. Please explain the difference very clearly."
+    }
 ]
 
-
-def build_prompt(style: str, user_prompt: str) -> str:
-    return f"{style}\n\n{user_prompt}"
-
-
 def generate_text(model, tokenizer, style: str, user_prompt: str, max_new_tokens: int = 220) -> str:
-    prompt = build_prompt(style, user_prompt)
-    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1024).to(model.device)
+    messages = [
+        {"role": "user", "content": f"{style}\n\n{user_prompt}"},
+    ]
+
+    input_ids = tokenizer.apply_chat_template(
+        messages,
+        tokenize=True,
+        add_generation_prompt=True,
+        return_tensors="pt",
+    ).to(model.device)
 
     with torch.no_grad():
         output_ids = model.generate(
-            **inputs,
+            input_ids=input_ids,
             max_new_tokens=max_new_tokens,
             do_sample=False,
             pad_token_id=tokenizer.eos_token_id,
         )
 
-    new_tokens = output_ids[0, inputs["input_ids"].shape[1]:]
+    new_tokens = output_ids[0, input_ids.shape[1]:]
     return tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
 
 
@@ -189,6 +209,8 @@ def response_vector(model, tokenizer, text: str, layer_idx: int) -> torch.Tensor
 def main():
     print(f"Loading model: {MODEL_NAME}")
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME,
         torch_dtype=torch.float16,
@@ -196,8 +218,7 @@ def main():
     )
     model.eval()
 
-    cfg = AutoConfig.from_pretrained(MODEL_NAME)
-    n_layers = cfg.num_hidden_layers
+    n_layers = model.config.num_hidden_layers
     layer = n_layers // 2
     print(f"Using middle hidden layer: {layer} / {n_layers}")
 
@@ -247,21 +268,26 @@ def main():
     # 3) Generate neutral vs confused evaluation responses
     print("Generating evaluation responses...")
     eval_rows = []
-    neutral_vecs = []
-    confused_vecs = []
+    neutral_scores = []
+    confused_scores = []
+    frustrated_scores = []
 
     for pair in EVAL_PAIRS:
         neutral_text = generate_text(model, tokenizer, NEUTRAL_STYLE, pair["neutral"])
         confused_text = generate_text(model, tokenizer, NEUTRAL_STYLE, pair["confused"])
+        frustrated_text = generate_text(model, tokenizer, NEUTRAL_STYLE, pair["frustrated"])
 
         n_vec = response_vector(model, tokenizer, neutral_text, layer)
         c_vec = response_vector(model, tokenizer, confused_text, layer)
-
+        f_vec = response_vector(model, tokenizer, frustrated_text, layer)
+        
         neutral_score = torch.dot(n_vec, assistiveness_axis).item()
         confused_score = torch.dot(c_vec, assistiveness_axis).item()
+        frustrated_score = torch.dot(f_vec, assistiveness_axis).item()
 
-        neutral_vecs.append(neutral_score)
-        confused_vecs.append(confused_score)
+        neutral_scores.append(neutral_score)
+        confused_scores.append(confused_score)
+        frustrated_scores.append(frustrated_score)
 
         eval_rows.append({
             "id": pair["id"],
@@ -269,9 +295,12 @@ def main():
             "confused_prompt": pair["confused"],
             "neutral_response": neutral_text,
             "confused_response": confused_text,
+            "frustrated_response": frustrated_text,
             "neutral_score": neutral_score,
             "confused_score": confused_score,
+            "frustrated_score": frustrated_score,
             "delta_confused_minus_neutral": confused_score - neutral_score,
+            "delta_frustrated_minus_neutral": frustrated_score - neutral_score,
         })
 
     with open(OUT_DIR / "eval_generations.jsonl", "w") as f:
@@ -283,17 +312,23 @@ def main():
         "layer": layer,
         "num_seed_tasks": len(SEED_TASKS),
         "num_eval_pairs": len(EVAL_PAIRS),
-        "neutral_mean": float(statistics.mean(neutral_vecs)),
-        "confused_mean": float(statistics.mean(confused_vecs)),
+        "neutral_mean": float(statistics.mean(neutral_scores)),
+        "confused_mean": float(statistics.mean(confused_scores)),
+        "frustrated_mean": float(statistics.mean(frustrated_scores)),
         "mean_delta_confused_minus_neutral": float(
             statistics.mean([r["delta_confused_minus_neutral"] for r in eval_rows])
+        ),
+        "mean_delta_frustrated_minus_neutral": float(
+            statistics.mean([r["delta_frustrated_minus_neutral"] for r in eval_rows])
         ),
         "results": [
             {
                 "id": r["id"],
                 "neutral_score": r["neutral_score"],
                 "confused_score": r["confused_score"],
+                "frustrated_score": r["frustrated_score"],
                 "delta_confused_minus_neutral": r["delta_confused_minus_neutral"],
+                "delta_frustrated_minus_neutral": r["delta_frustrated_minus_neutral"],
             }
             for r in eval_rows
         ],
