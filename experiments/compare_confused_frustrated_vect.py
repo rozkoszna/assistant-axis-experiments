@@ -10,8 +10,8 @@ os.environ.setdefault("USER", "rozkosz")
 os.environ.setdefault("LOGNAME", "rozkosz")
 
 MODEL_NAME = "meta-llama/Llama-3.1-8B-Instruct"
-RESP_FILE = "outputs/confused_assistive/eval_generations.jsonl"
-OUT_FILE = "outputs/confused_assistive/axis_comparison.json"
+RESP_FILE = "outputs/llama_confused_assistive/eval_generations.jsonl"
+OUT_FILE = "outputs/llama_confused_assistive/axis_comparison.json"
 
 print(f"Loading model: {MODEL_NAME}")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
