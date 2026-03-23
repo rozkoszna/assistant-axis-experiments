@@ -7,8 +7,8 @@ import torch
 import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-MODEL_NAME = "google/gemma-2b-it"
-OUT_DIR = Path("outputs/confused_assistive")
+MODEL_NAME = "meta-llama/Llama-3.1-8B-Instruct"
+OUT_DIR = Path("outputs/llama_confused_assistive")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 os.environ.setdefault("USER", "rozkosz")
@@ -182,7 +182,7 @@ def generate_text(model, tokenizer, style: str, user_prompt: str, max_new_tokens
             input_ids=input_ids,
             max_new_tokens=max_new_tokens,
             do_sample=False,
-            pad_token_id=tokenizer.eos_token_id,
+            pad_token_id=tokenizer.pad_token_id,
         )
 
     new_tokens = output_ids[0, input_ids.shape[1]:]
@@ -293,6 +293,7 @@ def main():
             "id": pair["id"],
             "neutral_prompt": pair["neutral"],
             "confused_prompt": pair["confused"],
+            "frustrated_prompt": pair["frustrated"],
             "neutral_response": neutral_text,
             "confused_response": confused_text,
             "frustrated_response": frustrated_text,
@@ -301,6 +302,7 @@ def main():
             "frustrated_score": frustrated_score,
             "delta_confused_minus_neutral": confused_score - neutral_score,
             "delta_frustrated_minus_neutral": frustrated_score - neutral_score,
+            "delta_frustrated_minus_confused": frustrated_score - confused_score,
         })
 
     with open(OUT_DIR / "eval_generations.jsonl", "w") as f:
@@ -320,6 +322,9 @@ def main():
         ),
         "mean_delta_frustrated_minus_neutral": float(
             statistics.mean([r["delta_frustrated_minus_neutral"] for r in eval_rows])
+        ),
+        "mean_delta_frustrated_minus_confused": float(
+            statistics.mean([r["delta_frustrated_minus_confused"] for r in eval_rows])
         ),
         "results": [
             {

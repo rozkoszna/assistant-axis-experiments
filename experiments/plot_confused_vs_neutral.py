@@ -2,7 +2,7 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 
-FILE = "outputs/gemma2b_trait_vectors/confused_vs_neutral_summary_expanded.json"
+FILE = "outputs/llama_confused_assistive/confused_vs_neutral_summary_expanded.json"
 
 with open(FILE) as f:
     data = json.load(f)
@@ -27,12 +27,12 @@ for i in range(len(labels)):
     plt.plot([x[i], x[i]], [confused[i], frustrated[i]], alpha=0.5)
 
 plt.xticks(x, labels, rotation=45, ha="right")
-plt.ylabel("Projection on supportive-minus-hostile axis")
+plt.ylabel("Projection on assistiveness axis")
 plt.title("Neutral vs Confused vs Frustrated User Responses")
 plt.legend()
 plt.tight_layout()
-plt.savefig("outputs/gemma2b_trait_vectors/confused_vs_neutral_plot.png", dpi=200)
-print("Saved outputs/gemma2b_trait_vectors/confused_vs_neutral_plot.png")
+plt.savefig("outputs/llama_confused_assistive/confused_vs_neutral_plot.png", dpi=200)
+print("Saved outputs/llama_confused_assistive/confused_vs_neutral_plot.png")
 
 plt.figure(figsize=(8, 5))
 plt.hist(confused_deltas, bins=10, alpha=0.6, label="confused - neutral")
@@ -44,5 +44,5 @@ plt.title("Assistiveness Shift Distribution")
 plt.legend()
 plt.tight_layout()
 
-plt.savefig("outputs/gemma2b_trait_vectors/delta_histogram.png", dpi=200)
-print("Saved outputs/gemma2b_trait_vectors/delta_histogram.png")
+plt.savefig("outputs/llama_confused_assistive/delta_histogram.png", dpi=200)
+print("Saved outputs/llama_confused_assistive/delta_histogram.png")

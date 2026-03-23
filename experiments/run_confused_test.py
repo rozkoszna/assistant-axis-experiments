@@ -3,7 +3,7 @@ from pathlib import Path
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 
-MODEL = "google/gemma-2b-it"
+MODEL = "meta-llama/Llama-3.1-8B-Instruct"
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL)
 if tokenizer.pad_token is None:
@@ -15,7 +15,7 @@ model = AutoModelForCausalLM.from_pretrained(
 )
 
 inp_file = "project/data/confused_vs_neutral.jsonl"
-out_file = "outputs/confused_test_responses.jsonl"
+out_file = "outputs/llama_confused_test_responses.jsonl"
 
 Path("outputs").mkdir(exist_ok=True)
 

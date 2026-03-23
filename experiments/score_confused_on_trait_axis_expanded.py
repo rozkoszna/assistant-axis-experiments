@@ -8,10 +8,10 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 os.environ.setdefault("USER", "rozkosz")
 os.environ.setdefault("LOGNAME", "rozkosz")
 
-MODEL_NAME = "google/gemma-2b-it"
-RESP_FILE = "outputs/confused_assistive/eval_generations.jsonl"
-AXIS_FILE = "outputs/gemma2b_trait_vectors/assistiveness_axis.pt"
-OUT_FILE = "outputs/gemma2b_trait_vectors/confused_vs_neutral_summary_expanded.json"
+MODEL_NAME = "meta-llama/Llama-3.1-8B-Instruct"
+RESP_FILE = "outputs/llama_confused_assistive/eval_generations.jsonl"
+AXIS_FILE = "outputs/llama_confused_assistive/assistiveness_axis.pt"
+OUT_FILE = "outputs/llama_confused_assistive/confused_vs_neutral_summary_expanded.json"
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 if tokenizer.pad_token is None:
@@ -39,7 +39,7 @@ def response_vector(text: str):
     with torch.no_grad():
         out = model(**inputs, output_hidden_states=True)
 
-    hidden = out.hidden_states[9]
+    hidden = out.hidden_states[len(out.hidden_states) // 2]
     vec = hidden.mean(dim=1).squeeze(0).float().cpu()
     return vec
 
@@ -63,6 +63,7 @@ with open(RESP_FILE) as f:
             "confused_score": confused_score,
             "frustrated_score": frustrated_score,
             "delta_confused_minus_neutral": confused_score - neutral_score,
+            "delta_frustrated_minus_neutral": frustrated_score - neutral_score,
             "delta_frustrated_minus_confused": frustrated_score - confused_score
         })
 

@@ -5,9 +5,9 @@ from statistics import mean
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-MODEL = "google/gemma-2b-it"
-RESP_FILE = "outputs/confused_test_responses.jsonl"
-OUT_DIR = Path("outputs/confused_vector")
+MODEL = "meta-llama/Llama-3.1-8B-Instruct"
+RESP_FILE = "outputs/llama_confused_test_responses.jsonl"
+OUT_DIR = Path("outputs/llama_confused_vector")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Avoid getpass/getuser issues in this container
@@ -67,7 +67,7 @@ with open(RESP_FILE) as f:
 
 common = sorted(set(neutral) & set(confused) & set(frustrated))
 if not common:
-    raise ValueError("No matching neutral/confused pairs found.")
+    raise ValueError("No matching neutral/confused/frustrated pairs found.")
 
 print(f"Found {len(common)} matched pairs")
 
