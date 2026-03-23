@@ -1,0 +1,9 @@
+{
+  "model": "meta-llama/Llama-3.1-8B-Instruct",
+  "layer": 16,
+  "num_examples": 19,
+  "confused_minus_neutral_norm": 1.011885643005371,
+  "frustrated_minus_neutral_norm": 1.06634521484375,
+  "axis_cosine_similarity": 0.9100829362869263,
+  "axis_angle_degrees": 24.48318477559581
+}
