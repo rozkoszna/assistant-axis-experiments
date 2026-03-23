@@ -2,7 +2,7 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 
-FILE = "outputs/llama_confused_assistive/confused_vs_neutral_summary_expanded.json"
+FILE = "outputs/confused_assistive/summary.json"
 
 with open(FILE) as f:
     data = json.load(f)
