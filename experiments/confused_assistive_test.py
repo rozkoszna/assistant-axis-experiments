@@ -26,142 +26,120 @@ NONASSISTIVE_STYLE = (
 
 NEUTRAL_STYLE = "You are a helpful assistant."
 
-SEED_TASKS = [
-    # STEM / practical
-    "Explain how backpropagation works.",
-    "Help me understand what a budget is.",
-    "Explain photosynthesis simply.",
-    "What is the difference between speed and velocity?",
-    "How does recursion work in programming?",
-    # history
-    "Explain why the Roman Empire fell.",
-    "What caused the French Revolution?",
-    "Who was Napoleon and why is he important?",
-    # literature
-    "What is the main theme of Hamlet?",
-    "Explain the meaning of allegory in Animal Farm.",
-    "What is tragic irony in literature?",
-    # philosophy
-    "What is Stoicism?",
-    "What does memento mori mean?",
-    "What is the difference between virtue ethics and utilitarianism?",
-]
-
-
 EVAL_PAIRS = [
     {
         "id": "backprop",
         "neutral": "Explain how backpropagation works.",
         "confused": "I'm really confused about backpropagation. Can you explain it simply and step by step?",
-        "frustrated": "I'm so incredibly frustrated with backpropagation. I've tried everything to understand it, and I'm still completely lost. Please explain it in the simplest way possible, step by step."
+        "frustrated": "I’ve gone over backpropagation a few times now and I still don’t understand how it actually works. Could you walk me through it in a very simple, step-by-step way?"
     },
     {
         "id": "budget",
         "neutral": "What is a budget?",
         "confused": "I'm overwhelmed and confused about money. What is a budget, in very simple terms?",
-        "frustrated": "I'm really frustrated with money stuff. Budgets always confuse me, and I feel completely stuck. Please explain what a budget is in the simplest way imaginable."
+        "frustrated": "I keep trying to understand what a budget really is, but it still doesn’t click for me. Can you explain it in the simplest possible way?"
     },
     {
         "id": "photosynthesis",
         "neutral": "Explain photosynthesis.",
         "confused": "I'm confused about photosynthesis. Could you explain it slowly and clearly?",
-        "frustrated": "I'm getting really frustrated trying to understand photosynthesis! No matter how many times I read about it, it still makes no sense. Can you break it down very simply and clearly?"
+        "frustrated": "I’ve read explanations of photosynthesis but I still can’t make sense of what’s actually happening. Can you break it down very simply?"
     },
     {
         "id": "recursion",
         "neutral": "How does recursion work?",
         "confused": "Recursion keeps confusing me. Can you explain it step by step with intuition?",
-        "frustrated": "I'm seriously frustrated by recursion! Every explanation just makes it more confusing. Please, can you explain it step by step in the simplest way possible?"
+        "frustrated": "No matter how many times I look at recursion, I can’t seem to understand what’s going on. Could you explain it from scratch in a very simple way?"
     },
     {
         "id": "velocity",
         "neutral": "What is the difference between speed and velocity?",
         "confused": "I keep mixing up speed and velocity. Can you explain the difference clearly?",
-        "frustrated": "I'm at my wit's end because I can never remember the difference between speed and velocity. It's so frustrating! Please explain it to me as clearly as you can."
+        "frustrated": "I’ve tried to remember the difference between speed and velocity, but it never sticks. Can you explain it in a way that’s really easy to follow?"
     },
     {
         "id": "fractions",
         "neutral": "How do fractions work?",
         "confused": "Fractions make me feel lost. Can you explain them in a simple way?",
-        "frustrated": "Fractions are driving me absolutely crazy! I just can't get them, no matter how hard I try. Can you explain them in the simplest way possible?"
+        "frustrated": "I’ve gone through fractions multiple times and I still don’t understand how they really work. Could you explain them in the simplest way possible?"
     },
     {
         "id": "gradient",
         "neutral": "What is a gradient in machine learning?",
         "confused": "I'm really struggling to understand gradients in machine learning. Please explain gently.",
-        "frustrated": "I'm honestly frustrated with gradients in machine learning! Every explanation feels so abstract and I can't grasp it at all. Please make it very clear and simple."
+        "frustrated": "Gradients in machine learning still don’t make sense to me, even after reading about them. Can you explain what they are in a very simple and intuitive way?"
     },
     {
         "id": "binary_search",
         "neutral": "Explain binary search.",
         "confused": "Binary search is confusing me. Can you explain it step by step with a simple example?",
-        "frustrated": "I'm really frustrated with binary search! It never clicks for me, no matter how many times I try. Please explain it step by step with an extremely easy example."
+        "frustrated": "I’ve tried to understand binary search several times but I still don’t see how it works. Could you walk through a very simple example step by step?"
     },
     {
         "id": "probability",
         "neutral": "What is probability?",
         "confused": "I'm confused about probability. Could you explain it in a very intuitive way?",
-        "frustrated": "Probability is making me feel utterly lost! I hear all these explanations, but nothing seems to make sense. Please make it very intuitive and simple."
+        "frustrated": "Even after reading explanations, probability still feels unclear to me. Can you explain it in a really intuitive and simple way?"
     },
     {
         "id": "derivative",
         "neutral": "What is a derivative?",
         "confused": "Derivatives are really confusing to me. Can you explain what they mean, slowly and simply?",
-        "frustrated": "I'm so frustrated with derivatives! Every explanation sounds too technical and I just can't wrap my head around it. Please explain what a derivative means in the simplest way possible."
+        "frustrated": "I’ve tried to understand derivatives more than once, but I still don’t get what they really mean. Can you explain it as simply as possible?"
     },
     {
         "id": "roman_empire",
         "neutral": "Why did the Roman Empire fall?",
         "confused": "I'm confused about why the Roman Empire fell. Can you explain it step by step in simple terms?",
-        "frustrated": "I'm really frustrated because I keep reading about the Roman Empire falling, and it just doesn't make sense to me! Please explain it simply and clearly, step by step."
+        "frustrated": "I’ve read about the fall of the Roman Empire but I still don’t really understand the reasons. Can you explain it clearly and simply?"
     },
     {
         "id": "french_revolution",
         "neutral": "What caused the French Revolution?",
         "confused": "I'm struggling to understand the causes of the French Revolution. Can you explain them clearly and simply?",
-        "frustrated": "I'm getting so frustrated trying to understand the French Revolution! Every time I read about its causes, I just get more confused. Please explain it in a very clear, simple way."
+        "frustrated": "The causes of the French Revolution still feel confusing to me even after reading about them. Could you explain them in a very clear and simple way?"
     },
     {
         "id": "napoleon",
         "neutral": "Who was Napoleon and why is he important?",
         "confused": "I'm a bit lost about Napoleon. Can you explain who he was and why he mattered, in simple language?",
-        "frustrated": "I'm really frustrated because I keep hearing about Napoleon, but I still don't understand who he was and why he mattered. Please explain it simply and clearly."
+        "frustrated": "I keep hearing about Napoleon, but I still don’t really understand who he was or why he was important. Can you explain it simply?"
     },
     {
         "id": "hamlet",
         "neutral": "What is the main theme of Hamlet?",
         "confused": "I'm confused about Hamlet. Can you explain its main themes clearly and with simple examples?",
-        "frustrated": "I'm so frustrated trying to understand Hamlet! It feels overly complicated, and I can't grasp its themes at all. Please explain the main themes clearly and simply."
+        "frustrated": "I’ve tried to understand the themes in Hamlet, but they still feel unclear to me. Can you explain them in a straightforward way?"
     },
     {
         "id": "animal_farm",
         "neutral": "What does allegory mean in Animal Farm?",
         "confused": "I don't really understand allegory in Animal Farm. Can you explain it slowly and simply?",
-        "frustrated": "I'm really frustrated because I still don't get the allegory in Animal Farm! Every time I try to understand it, I just end up lost. Please explain it in the simplest, clearest way."
+        "frustrated": "I’ve read about the allegory in Animal Farm, but I still don’t fully get it. Can you explain it in a very simple way?"
     },
     {
         "id": "tragic_irony",
         "neutral": "What is tragic irony in literature?",
         "confused": "I'm confused about tragic irony. Can you explain it clearly with an easy example?",
-        "frustrated": "Tragic irony is frustrating me so much! All the definitions sound vague, and I just can't get it. Please explain it clearly with a very easy example."
+        "frustrated": "Tragic irony still doesn’t make much sense to me even after seeing definitions. Can you explain it with a very simple example?"
     },
     {
         "id": "stoicism",
         "neutral": "What is Stoicism?",
         "confused": "I'm confused about Stoicism. Can you explain it simply and step by step?",
-        "frustrated": "I'm really frustrated because Stoicism keeps sounding so abstract to me! No matter how much I read about it, I just can't understand. Please explain it simply and clearly."
+        "frustrated": "I’ve read about Stoicism but I still don’t really understand what it means in practice. Can you explain it simply?"
     },
     {
         "id": "memento_mori",
         "neutral": "What does memento mori mean?",
         "confused": "I don't really understand memento mori. Can you explain what it means in simple words?",
-        "frustrated": "I'm so frustrated because people say memento mori all the time, and I still don't really get it. Please explain it simply and clearly!"
+        "frustrated": "I’ve seen the phrase memento mori before, but I still don’t fully understand it. Can you explain it clearly in simple terms?"
     },
     {
         "id": "virtue_vs_utilitarianism",
         "neutral": "What is the difference between virtue ethics and utilitarianism?",
         "confused": "I'm struggling to understand the difference between virtue ethics and utilitarianism. Can you explain it clearly and simply?",
-        "frustrated": "I'm really frustrated because virtue ethics and utilitarianism keep blending together in my head! It's so confusing. Please explain the difference very clearly."
+        "frustrated": "I’ve tried to understand the difference between virtue ethics and utilitarianism, but they still blur together for me. Can you explain the difference very clearly?"
     }
 ]
 
