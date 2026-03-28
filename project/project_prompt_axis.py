@@ -60,34 +60,46 @@ NOTES
       prompt → generate response → project response
 
 ----------------------------------------
+
+Notes:
+
+That matches the spirit of:
+
+answer_mean: average across response tokens
+
+But it does not match:
+
+pre_generation_last_token: needs the single last token before generation
+assistant_header_mean: needs the mean over only the assistant-header tokens
 """
 
 
 import argparse
+
 import json
-import os
 from pathlib import Path
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-os.environ.setdefault("USER", "rozkosz")
-os.environ.setdefault("LOGNAME", "rozkosz")
-
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Project text onto a saved axis.")
     parser.add_argument("--axis", type=str, required=True, help="Path to saved axis .pt file")
-    parser.add_argument("--text", type=str, default=None, help="Text to project directly")
-    parser.add_argument("--input-jsonl", type=str, default=None, help="Optional JSONL file with texts")
+
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--text", type=str, default=None, help="Text to project directly")
+    group.add_argument("--input-jsonl", type=str, default=None, help="Optional JSONL file with texts")
+
     parser.add_argument("--text-key", type=str, default="text", help="Key to read from JSONL rows")
     parser.add_argument("--output", type=str, default=None, help="Optional output JSONL path")
     return parser.parse_args()
 
 
+
 def load_axis(axis_path: Path):
     data = torch.load(axis_path, map_location="cpu")
-    axis = data["axis"]
+    axis = data["axis"].float().cpu()
     model_name = data["model_name"]
     layer = data["layer"]
     return axis, model_name, layer
@@ -101,7 +113,7 @@ def load_model(model_name: str):
 
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        dtype=torch.float16,
+        torch_dtype=torch.float16,
         device_map="auto",
     )
     model.eval()
@@ -109,13 +121,14 @@ def load_model(model_name: str):
 
 
 def text_vector(model, tokenizer, text: str, layer: int) -> torch.Tensor:
+    device = next(model.parameters()).device
     inputs = tokenizer(
         text,
         return_tensors="pt",
         truncation=True,
         max_length=1024,
         padding=False,
-    ).to(model.device)
+    ).to(device)
 
     with torch.no_grad():
         out = model(**inputs, output_hidden_states=True)
@@ -126,6 +139,7 @@ def text_vector(model, tokenizer, text: str, layer: int) -> torch.Tensor:
 
 
 def project(vec: torch.Tensor, axis: torch.Tensor) -> float:
+    axis = axis / axis.norm()
     return torch.dot(vec, axis).item()
 
 
