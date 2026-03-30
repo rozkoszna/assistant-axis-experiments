@@ -1,0 +1,9 @@
+{
+  "activation_position": "pre_generation_last_token",
+  "total_traits_seen": 240,
+  "vectors_saved_all_traits_no_filter": 240,
+  "vectors_saved_filter_overall_mean_score_diff_ge_50": 130,
+  "vectors_saved_filter_matched_pairs_ge_50_count_ge_10_total": 229,
+  "vectors_saved_filter_prompt_pair_question_wins_ge_10_require_3_of_5_prompt_pairs": 188,
+  "failed_traits": []
+}
