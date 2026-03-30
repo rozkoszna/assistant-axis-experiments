@@ -12,8 +12,10 @@ USAGE EXAMPLES
 
 1) Project a single text:
 
-uv run python project.py \
-  --axis outputs/axes/assistiveness_axis.pt \
+uv run python project/project_prompt_axis.py \
+  --axis precomputed_axis/answer_mean/filter_matched_pairs_ge_50_count_ge_10_total/supportive.pt \
+  --model-name meta-llama/Llama-3.1-8B-Instruct \
+  --layer 20 \
   --text "I'm really confused about recursion. Can you explain it step by step?"
 
 ----------------------------------------
@@ -26,8 +28,10 @@ Input format (JSONL):
 
 Run:
 
-uv run python project.py \
-  --axis outputs/axes/assistiveness_axis.pt \
+uv run python project/project_prompt_axis.py \
+  --axis precomputed_axis/answer_mean/filter_matched_pairs_ge_50_count_ge_10_total/supportive.pt \
+  --model-name meta-llama/Llama-3.1-8B-Instruct \
+  --layer 20 \
   --input-jsonl data/texts.jsonl \
   --text-key text \
   --output outputs/projected_texts.jsonl
@@ -44,33 +48,54 @@ Lower score → less aligned
 
 ----------------------------------------
 
-NOTES
+AXIS FILE FORMAT
 
-- The axis file must contain:
+- Each .pt file contains:
     {
-        "axis": Tensor,
-        "model_name": str,
-        "layer": int
+        "vector": Tensor of shape [n_layers, d_model],
+        "trait": str,
+        "activation_position": str,
     }
 
-- The same model used to build the axis must be used here.
 
-- This script projects the TEXT itself.
-  For assistant behavior experiments, you may want:
-      prompt → generate response → project response
+- The "vector" tensor contains one axis per layer.
+- The script selects a layer using --layer.
+- The axis used for projection is: vector[layer].
+----------------------------------------
+
+REQUIREMENTS
+
+- You must specify:
+    --model-name : HuggingFace model used to compute hidden states
+    --layer      : which layer to use from the axis file
+
+- The model must match the one used to generate the trait vectors.
+
+NOTES
+
+- This script uses mean pooling over all tokens in the input text.
+
+- It is best aligned with axes built using:
+      activation_position = "answer_mean"
+
+- It does NOT faithfully reproduce:
+      pre_generation_last_token
+      assistant_header_mean
+
+  Using those axes with this script may produce inconsistent results.
+
+- Different layers may produce very different projection scores.
+  It is often useful to compare multiple layers (e.g., 8, 16, 24, 31).
 
 ----------------------------------------
 
-Notes:
+INTERPRETATION
 
-That matches the spirit of:
+- Projection scores are relative, not absolute.
+- Compare scores across inputs for the same axis and layer.
+- Higher magnitude = stronger alignment with the trait direction.
 
-answer_mean: average across response tokens
-
-But it does not match:
-
-pre_generation_last_token: needs the single last token before generation
-assistant_header_mean: needs the mean over only the assistant-header tokens
+----------------------------------------
 """
 
 
@@ -86,23 +111,38 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 def parse_args():
     parser = argparse.ArgumentParser(description="Project text onto a saved axis.")
     parser.add_argument("--axis", type=str, required=True, help="Path to saved axis .pt file")
-
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--text", type=str, default=None, help="Text to project directly")
-    group.add_argument("--input-jsonl", type=str, default=None, help="Optional JSONL file with texts")
-
+    parser.add_argument("--layer", type=int, required=True, help="Layer index to use from the saved vector stack")
+    parser.add_argument("--model-name", type=str, required=True, help="HF model name used for projection")
+    parser.add_argument("--text", type=str, default=None, help="Text to project directly")
+    parser.add_argument("--input-jsonl", type=str, default=None, help="Optional JSONL file with texts")
     parser.add_argument("--text-key", type=str, default="text", help="Key to read from JSONL rows")
     parser.add_argument("--output", type=str, default=None, help="Optional output JSONL path")
     return parser.parse_args()
 
 
 
-def load_axis(axis_path: Path):
+def load_axis(axis_path: Path, layer: int):
     data = torch.load(axis_path, map_location="cpu")
-    axis = data["axis"].float().cpu()
-    model_name = data["model_name"]
-    layer = data["layer"]
-    return axis, model_name, layer
+
+    if not isinstance(data, dict):
+        raise ValueError(f"Unexpected axis file format: {type(data)}")
+
+    if "vector" not in data:
+        raise KeyError(f"No 'vector' key found. Available keys: {list(data.keys())}")
+
+    vectors = data["vector"].float().cpu()
+
+    if vectors.ndim != 2:
+        raise ValueError(f"Expected 'vector' to have shape [n_layers, d_model], got {tuple(vectors.shape)}")
+
+    if not (0 <= layer < vectors.shape[0]):
+        raise ValueError(f"Layer {layer} out of range for vector stack of shape {tuple(vectors.shape)}")
+
+    axis = vectors[layer]
+    activation_position = data.get("activation_position")
+    trait = data.get("trait")
+
+    return axis, activation_position, trait
 
 
 def load_model(model_name: str):
@@ -160,8 +200,9 @@ def main():
     args = parse_args()
 
     axis_path = Path(args.axis)
-    axis, model_name, layer = load_axis(axis_path)
-    model, tokenizer = load_model(model_name)
+    axis, activation_position, trait = load_axis(axis_path, args.layer)
+    model, tokenizer = load_model(args.model_name)
+    layer = args.layer
 
     if args.text is not None:
         vec = text_vector(model, tokenizer, args.text, layer)
@@ -170,7 +211,8 @@ def main():
             "text": args.text,
             "score": score,
             "axis": str(axis_path),
-            "model_name": model_name,
+            "activation_position": activation_position,
+            "model_name": args.model_name,
             "layer": layer,
         }, indent=2))
         return
