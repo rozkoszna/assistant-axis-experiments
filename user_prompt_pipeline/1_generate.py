@@ -243,6 +243,9 @@ def iter_candidate_pairs(
 
     for item in intent_list:
         for candidate_index in range(num_candidates):
+            logger.info(
+                f"Generating intent {item.intent_index}, candidate {candidate_index}"
+            )
             neutral_instruction = build_neutral_user_prompt(item.intent)
             trait_instruction = build_trait_user_prompt(item.intent, trait, explanation)
 
