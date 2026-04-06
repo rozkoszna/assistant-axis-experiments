@@ -185,6 +185,9 @@ class PromptPairGenerator:
             tensor_parallel_size=self.tensor_parallel_size,
             gpu_memory_utilization=self.gpu_memory_utilization,
             max_model_len=self.max_model_len,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+            top_p=self.top_p,
         )
         self.generator.load()
 
