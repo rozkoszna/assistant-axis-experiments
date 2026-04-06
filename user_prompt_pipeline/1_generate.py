@@ -200,23 +200,12 @@ class PromptPairGenerator:
             {"role": "user", "content": user_prompt},
         ]
 
-        outputs = self.generator.generate(
-            [conversation],
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
-            top_p=self.top_p,
-            seed=self.seed,
-        )
+        outputs = self.generator.generate_batch([conversation])
 
         if not outputs:
             return ""
 
-        first = outputs[0]
-        if isinstance(first, dict):
-            text = str(first.get("response") or first.get("text") or "")
-        else:
-            text = str(first)
-
+        text = str(outputs[0])
         return sanitize_output(text)
 
 
