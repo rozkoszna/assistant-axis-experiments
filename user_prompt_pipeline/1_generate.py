@@ -325,10 +325,12 @@ def main() -> None:
         torch.manual_seed(args.seed)
 
     intents_file = Path(args.intents_file)
-    output_file = Path(args.output_file)
+    base_dir = Path("outputs") / "user_prompts" / args.trait
+    output_file = base_dir / "candidates" / Path(args.output_file).name
 
     intents = load_intents(intents_file)
     logger.info("Loaded %s intents from %s", len(intents), intents_file)
+    logger.info("Resolved output file to %s", output_file)
 
     tensor_parallel_size = compute_tensor_parallel_size(args.tensor_parallel_size)
 

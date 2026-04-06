@@ -355,7 +355,9 @@ def main() -> None:
         )
 
     candidates_file = Path(args.candidates_file)
-    output_file = Path(args.output_file)
+    trait_name = candidates_file.parent.parent.name
+    base_dir = Path("outputs") / "user_prompts" / trait_name
+    output_file = base_dir / "judged" / Path(args.output_file).name
 
     rows = load_candidates(candidates_file)
     logger.info("Loaded %s candidate pairs from %s", len(rows), candidates_file)
