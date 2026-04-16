@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from user_prompt_pipeline.io_utils import load_jsonl, load_trait_list, write_jsonl
+from io_utils import load_jsonl, load_trait_list, write_jsonl
 
 
 def resolve_axis_files(
