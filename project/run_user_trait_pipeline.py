@@ -70,7 +70,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--axis-trait", type=str, default=None, help="Axis trait name for projection-mode=one")
     parser.add_argument(
-        "--traits-file",
+        "--axis-traits-file",
         type=str,
         default=None,
         help="JSON file containing a list of trait names for projection-mode=subset",
