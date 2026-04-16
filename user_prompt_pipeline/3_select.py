@@ -244,9 +244,9 @@ def main() -> None:
         raise ValueError("--top_k must be >= 1")
 
     judged_file = Path(args.judged_file)
-    trait_name = candidates_file.parent.parent.name
+    trait_name = judged_file.parent.parent.name
     base_dir = Path("outputs") / "user_prompts" / trait_name
-    output_file = base_dir / "judged" / Path(args.output_file).name
+    output_file = base_dir / "selected" / Path(args.output_file).name
 
     rows = load_judged(judged_file)
     logger.info("Loaded %s judged rows from %s", len(rows), judged_file)
