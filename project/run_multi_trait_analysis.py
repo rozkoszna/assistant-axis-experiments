@@ -25,15 +25,15 @@ def parse_args() -> argparse.Namespace:
     # Multi-trait input
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
-        "--traits",
+        "--user-traits",
         nargs="+",
         type=str,
-        help="List of traits to run, e.g. confused very_very_confused supportive",
+        help="List of USER traits to run, e.g. confused very_very_confused",
     )
     group.add_argument(
-        "--traits-file",
+        "--user-traits-file",
         type=str,
-        help="JSON file containing a list of trait names",
+        help="JSON file containing a list of USER trait names",
     )
 
     parser.add_argument(
@@ -152,10 +152,10 @@ def load_trait_list(path: Path) -> list[str]:
     return data
 
 
-def get_traits(args: argparse.Namespace) -> list[str]:
-    if args.traits is not None:
-        return args.traits
-    return load_trait_list(REPO_ROOT / args.traits_file)
+def get_user_traits(args: argparse.Namespace) -> list[str]:
+    if args.user_traits is not None:
+        return args.user_traits
+    return load_trait_list(REPO_ROOT / args.user_traits_file)
 
 
 def build_trait_run_name(trait: str, comparison_name: str, run_suffix: str | None) -> str:
@@ -236,7 +236,7 @@ def build_single_trait_cmd(args: argparse.Namespace, trait: str, run_name: str) 
         cmd += ["--axis-trait", args.axis_trait]
 
     if args.axis_traits_file is not None:
-        cmd += ["--traits-file", args.axis_traits_file]
+        cmd += ["--axis-traits-file", args.axis_traits_file]
 
     if args.tensor_parallel_size is not None:
         cmd += ["--tensor-parallel-size", str(args.tensor_parallel_size)]
@@ -309,7 +309,7 @@ def build_comparison_plot_cmd(
 def main() -> None:
     args = parse_args()
 
-    traits = get_traits(args)
+    traits = get_user_traits(args)
     if not traits:
         raise ValueError("No traits provided")
 
