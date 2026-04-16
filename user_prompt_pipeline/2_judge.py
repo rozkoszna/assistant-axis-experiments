@@ -21,6 +21,7 @@ import argparse
 import asyncio
 import logging
 import os
+import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Optional
@@ -160,7 +161,6 @@ Guidance:
 0-9 = wrong mode, malformed, or wrong intent
 """
 
-
 def build_pair_judge_prompt(
     trait: str,
     explanation: Optional[str],
@@ -189,7 +189,12 @@ Return REFUSAL if either prompt:
 - answers the request instead of asking it
 - is malformed, empty, or nonsensical
 
-Otherwise return a single integer from 0 to 100.
+Otherwise return ONLY a single integer from 0 to 100.
+Do not include any explanation, labels, punctuation, or extra words.
+Examples of valid outputs:
+92
+7
+100
 
 Score high only if:
 - both prompts preserve the same seed intent
@@ -215,15 +220,12 @@ def parse_judge_score(response_text: Optional[str]) -> int:
     if text.upper().startswith("REFUSAL"):
         return 0
 
-    first_token = text.split()[0]
-    try:
-        score = int(first_token)
-    except (ValueError, IndexError):
+    match = re.search(r"\b(100|[1-9]?\d)\b", text)
+    if not match:
         return 0
 
-    if 0 <= score <= 100:
-        return score
-    return 0
+    score = int(match.group(1))
+    return score if 0 <= score <= 100 else 0
 
 
 async def judge_rows(
