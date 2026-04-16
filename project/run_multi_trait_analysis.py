@@ -170,7 +170,7 @@ def build_single_trait_cmd(args: argparse.Namespace, trait: str, run_name: str) 
         "uv",
         "run",
         "python",
-        "user_prompt_pipeline/run_user_trait_pipeline.py",
+        "project/run_user_trait_pipeline.py",
         "--trait",
         trait,
         "--run-name",
