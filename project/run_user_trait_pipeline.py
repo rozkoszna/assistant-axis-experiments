@@ -5,8 +5,8 @@ import argparse
 import subprocess
 from pathlib import Path
 
-from user_prompt_pipeline.io_utils import make_run_name
-from user_prompt_pipeline.projection_runner import (
+from io_utils import make_run_name
+from projection_runner import (
     resolve_axis_files,
     run_projection_for_selected,
 )
@@ -87,7 +87,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--plot-script",
         type=str,
-        default="project/plots/plot_trait_run_axes.py"
+        default="project/plots/plot_trait_run_axes.py",
         help="Path to plotting script",
     )
     parser.add_argument("--plot-top-k", type=int, default=20)
