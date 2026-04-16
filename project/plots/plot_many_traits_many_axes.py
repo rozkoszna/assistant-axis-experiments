@@ -7,13 +7,12 @@ import json
 from pathlib import Path
 from typing import Any
 
-
 import matplotlib.pyplot as plt
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Plot many user-trait runs across many projection axes."
+        description="Plot many user-trait runs across many projection axes, always including Neutral."
     )
     parser.add_argument(
         "--inputs",
@@ -35,12 +34,6 @@ def parse_args() -> argparse.Namespace:
         help="Optional CSV summary output path",
     )
     parser.add_argument(
-        "--metric",
-        choices=["delta", "neutral", "trait"],
-        default="delta",
-        help="Which value to aggregate per run/axis",
-    )
-    parser.add_argument(
         "--aggregate",
         choices=["mean", "median"],
         default="mean",
@@ -50,7 +43,7 @@ def parse_args() -> argparse.Namespace:
         "--top-k-axes",
         type=int,
         default=None,
-        help="Optional: keep only top K axes by average absolute value across runs",
+        help="Optional: keep only top K axes by average absolute trait score across runs",
     )
     parser.add_argument(
         "--title",
@@ -80,16 +73,6 @@ def infer_run_label(path: Path) -> str:
     return path.stem
 
 
-def get_metric_value(row: dict[str, Any], metric: str) -> float:
-    if metric == "delta":
-        return float(row["projection_delta_neutral_minus_trait"])
-    if metric == "neutral":
-        return float(row["projection_score_neutral"])
-    if metric == "trait":
-        return float(row["projection_score_trait"])
-    raise ValueError(f"Unknown metric: {metric}")
-
-
 def aggregate(values: list[float], mode: str) -> float:
     if not values:
         raise ValueError("Cannot aggregate empty list")
@@ -113,7 +96,7 @@ def write_csv(rows: list[dict[str, Any]], path: Path) -> None:
             fieldnames=[
                 "run_label",
                 "axis_trait",
-                "metric",
+                "kind",
                 "aggregate",
                 "n_rows",
                 "value",
@@ -127,32 +110,37 @@ def main() -> None:
     args = parse_args()
 
     summaries: list[dict[str, Any]] = []
+    neutral_by_axis_all_runs: dict[str, list[float]] = {}
 
     for input_path_str in args.inputs:
         input_path = Path(input_path_str)
         run_label = infer_run_label(input_path)
         rows = load_jsonl(input_path)
 
-        by_axis: dict[str, list[float]] = {}
-        counts: dict[str, int] = {}
+        by_axis_trait: dict[str, list[float]] = {}
+        counts_trait: dict[str, int] = {}
 
         for row in rows:
             axis_trait = row.get("projection_trait")
             if axis_trait is None:
                 continue
 
-            value = get_metric_value(row, args.metric)
-            by_axis.setdefault(axis_trait, []).append(value)
-            counts[axis_trait] = counts.get(axis_trait, 0) + 1
+            trait_score = float(row["projection_score_trait"])
+            neutral_score = float(row["projection_score_neutral"])
 
-        for axis_trait, values in by_axis.items():
+            by_axis_trait.setdefault(axis_trait, []).append(trait_score)
+            counts_trait[axis_trait] = counts_trait.get(axis_trait, 0) + 1
+
+            neutral_by_axis_all_runs.setdefault(axis_trait, []).append(neutral_score)
+
+        for axis_trait, values in by_axis_trait.items():
             summaries.append(
                 {
                     "run_label": run_label,
                     "axis_trait": axis_trait,
-                    "metric": args.metric,
+                    "kind": "trait",
                     "aggregate": args.aggregate,
-                    "n_rows": counts[axis_trait],
+                    "n_rows": counts_trait[axis_trait],
                     "value": aggregate(values, args.aggregate),
                 }
             )
@@ -160,7 +148,20 @@ def main() -> None:
     if not summaries:
         raise ValueError("No projection rows found across inputs.")
 
-    run_labels = sorted({row["run_label"] for row in summaries})
+    for axis_trait, values in neutral_by_axis_all_runs.items():
+        summaries.append(
+            {
+                "run_label": "Neutral",
+                "axis_trait": axis_trait,
+                "kind": "neutral",
+                "aggregate": args.aggregate,
+                "n_rows": len(values),
+                "value": aggregate(values, args.aggregate),
+            }
+        )
+
+    run_labels = sorted({row["run_label"] for row in summaries if row["run_label"] != "Neutral"})
+    run_labels = ["Neutral"] + run_labels
     axis_traits = sorted({row["axis_trait"] for row in summaries})
 
     if args.top_k_axes is not None:
@@ -175,13 +176,13 @@ def main() -> None:
         )
         axis_traits = ranked_axes[: args.top_k_axes]
 
-    matrix = []
     summary_lookup = {
         (row["run_label"], row["axis_trait"]): float(row["value"])
         for row in summaries
         if row["axis_trait"] in axis_traits
     }
 
+    matrix = []
     for run_label in run_labels:
         matrix_row = []
         for axis_trait in axis_traits:
@@ -190,12 +191,12 @@ def main() -> None:
 
     plt.figure(figsize=(max(10, len(axis_traits) * 0.5), max(6, len(run_labels) * 0.5)))
     plt.imshow(matrix, aspect="auto")
-    plt.colorbar(label=f"{args.aggregate} {args.metric}")
+    plt.colorbar(label=f"{args.aggregate} projection score")
     plt.xticks(range(len(axis_traits)), axis_traits, rotation=45, ha="right")
     plt.yticks(range(len(run_labels)), run_labels)
     plt.xlabel("Projection axis")
-    plt.ylabel("User trait run")
-    plt.title(args.title or "Many traits on many axes")
+    plt.ylabel("Series")
+    plt.title(args.title or "Many traits on many axes (with Neutral)")
     plt.tight_layout()
 
     output_path = Path(args.output)

@@ -122,12 +122,6 @@ def parse_args() -> argparse.Namespace:
         help="Directory to save multi-trait comparison outputs",
     )
     parser.add_argument(
-        "--metric",
-        choices=["delta", "neutral", "trait"],
-        default="delta",
-        help="Metric to compare across traits",
-    )
-    parser.add_argument(
         "--aggregate",
         choices=["mean", "median"],
         default="mean",
@@ -288,8 +282,6 @@ def build_comparison_plot_cmd(
             *[str(p) for p in projection_files],
             "--axis-trait",
             args.axis_trait,
-            "--metric",
-            args.metric,
             "--aggregate",
             args.aggregate,
             "--output",
@@ -305,8 +297,6 @@ def build_comparison_plot_cmd(
         str(REPO_ROOT / "project/plots/plot_many_traits_many_axes.py"),
         "--inputs",
         *[str(p) for p in projection_files],
-        "--metric",
-        args.metric,
         "--aggregate",
         args.aggregate,
         "--top-k-axes",
