@@ -271,7 +271,7 @@ def main() -> None:
             axes_dir=axes_dir,
             projection_mode=args.projection_mode,
             axis_trait=args.axis_trait,
-            traits_file=args.traits_file,
+            traits_file=args.axis_traits_file,
         )
 
         print("Resolved axis files:")
