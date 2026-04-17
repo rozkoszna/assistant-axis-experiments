@@ -149,7 +149,7 @@ def main() -> None:
     for axis_info in axes:
         score_a = project(vec_a, axis_info["axis"])
         score_b = project(vec_b, axis_info["axis"])
-        delta = score_a - score_b
+        delta_b_minus_a = score_b - score_a
 
         results.append(
             {
@@ -164,12 +164,13 @@ def main() -> None:
                 "text_b": args.text_b,
                 "score_a": score_a,
                 "score_b": score_b,
-                "delta_a_minus_b": delta,
+                "delta_a_minus_b": score_a - score_b,
+                "delta_b_minus_a": score_b - score_a,   
             }
         )
 
-    results.sort(key=lambda x: abs(x["delta_a_minus_b"]), reverse=True)
-
+    results.sort(key=lambda x: abs(x["delta_b_minus_a"]), reverse=True)
+    
     output_path = Path(args.output)
     write_jsonl(results, output_path)
     print(f"Saved {len(results)} rows to {output_path}")

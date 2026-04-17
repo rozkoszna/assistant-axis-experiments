@@ -1,4 +1,77 @@
 #!/usr/bin/env python3
+"""
+Run the user-trait pipeline for multiple traits and generate comparison plots.
+
+Overview
+--------
+This script orchestrates a multi-trait experiment by repeatedly running the
+single-trait pipeline (`project/run_user_trait_pipeline.py`) for a list of
+user traits, collecting the resulting projection files, and then generating
+a combined comparison plot across those traits.
+
+For each user trait, the script:
+1. Builds a per-trait run name.
+2. Runs the full single-trait pipeline with shared settings for generation,
+   judging, selection, and projection.
+3. Verifies that the expected projection JSONL file was created.
+4. Stores that projection file for the final comparison step.
+
+After all traits have been processed, the script:
+5. Runs the appropriate comparison plotting script to visualize differences
+   across traits.
+
+Inputs
+------
+You must provide user traits in exactly one of these ways:
+- `--user-traits`: list of trait names on the command line
+- `--user-traits-file`: JSON file containing a list of trait names
+
+You must also provide:
+- `--comparison-name`: experiment name used in output filenames
+- `--axes-dir`: directory containing saved `.pt` axis files
+
+The script also accepts shared settings for:
+- candidate generation
+- judging
+- selection
+- projection
+- per-trait plotting
+- final comparison plotting
+
+Projection modes
+----------------
+- `all`: project onto all axes in `--axes-dir`
+- `one`: project onto one named axis (requires `--axis-trait`)
+- `subset`: project onto a subset of axes from a JSON file
+  (requires `--axis-traits-file`)
+
+Outputs
+-------
+Per trait:
+- Runs the standard single-trait pipeline and produces the usual per-trait
+  outputs, including a projection JSONL file.
+
+Across all traits:
+- Produces one comparison plot in `--comparison-output-dir`.
+
+Plotting behavior
+-----------------
+- If `--with-per-trait-plots` is enabled, each single-trait run also produces
+  its own standard plot.
+- Independently of that, this script always produces a final comparison plot
+  across all requested traits.
+
+Notes
+-----
+- This script is an orchestration wrapper. It does not directly implement
+  generation, judging, selection, or projection logic itself.
+- Instead, it launches the single-trait pipeline as a subprocess for each
+  trait and then launches a comparison plotting script.
+- The script assumes the standard output path convention used by
+  `run_user_trait_pipeline.py`.
+"""
+
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse

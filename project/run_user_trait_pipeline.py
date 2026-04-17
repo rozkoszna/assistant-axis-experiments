@@ -1,4 +1,91 @@
 #!/usr/bin/env python3
+"""
+Run the full user-trait prompt pipeline for a single trait.
+
+Overview
+--------
+This script orchestrates the end-to-end prompt-generation pipeline for one
+user trait. It shells out to the stage-specific pipeline scripts, manages
+output file locations, and optionally runs projection and plotting steps.
+
+The pipeline stages are:
+1. Generate candidate prompts for the requested trait.
+2. Judge and score those candidates.
+3. Select the best candidates according to the configured selection rules.
+4. Optionally project the selected prompt pairs onto one or more saved axes.
+5. Optionally plot the projection results.
+
+Typical workflow
+----------------
+For a given trait (for example `confused`), the script:
+- builds a run name,
+- determines the standard output paths for all artifacts,
+- runs generation,
+- runs judging,
+- runs selection,
+- optionally resolves projection axes and runs projection,
+- optionally creates a plot from the projection output.
+
+Inputs
+------
+Required:
+- `--trait`: name of the user trait to model
+
+Optional:
+- `--explanation`: additional trait description for generation
+- `--run-name`: explicit run name; otherwise a generated name is used
+- `--intents-file`: JSONL file of input intents
+
+The script also accepts shared settings for:
+- generation
+- judging
+- selection
+- projection
+- plotting
+
+Projection
+----------
+Projection is optional and enabled with `--with-projection`.
+
+When enabled, you must also provide:
+- `--axes-dir`: directory containing saved `.pt` axis files
+
+Projection modes:
+- `all`: use all axis files in the directory
+- `one`: use one named axis (requires `--axis-trait`)
+- `subset`: use a subset of axes from a JSON file (requires
+  `--axis-traits-file`)
+
+Plotting
+--------
+Plotting is optional and enabled with `--with-plot`.
+
+Important:
+- `--with-plot` requires `--with-projection`, because the plot is created
+  from the projection output.
+
+Outputs
+-------
+For each run, the script writes artifacts under:
+`outputs/user_prompts/<trait>/`
+
+Including:
+- `candidates/<run_name>.jsonl`
+- `judged/<run_name>.jsonl`
+- `selected/<run_name>.jsonl`
+- `projections/<run_name>.jsonl` (if enabled)
+- `plots/<run_name>.png` (if enabled)
+
+Notes
+-----
+- This script is an orchestrator. It does not implement the core generation,
+  judging, or selection logic itself.
+- Instead, it invokes the stage-specific scripts using subprocess calls.
+- It assumes the downstream scripts follow the expected file and directory
+  conventions.
+"""
+
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
