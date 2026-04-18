@@ -168,7 +168,7 @@ def build_pipeline_cmd(trait: str, run_name: str, seed: int) -> list[str]:
         "uv",
         "run",
         "python",
-        "user_prompt_pipeline/run_user_trait_pipeline.py",
+        "project/run_user_trait_pipeline.py",
         "--trait",
         trait,
         "--run-name",
