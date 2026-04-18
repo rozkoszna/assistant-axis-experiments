@@ -11,11 +11,11 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from io_utils import load_jsonl, print_header, print_kv, write_json, write_jsonl
-from pipeline_utils import run_cmd
+from pipeline_utils import DEFAULT_GEN_MODEL, run_cmd
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_MODEL = "meta-llama/Llama-3.1-8B-Instruct"
+DEFAULT_MODEL = DEFAULT_GEN_MODEL
 
 
 def parse_args() -> argparse.Namespace:
@@ -31,6 +31,30 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--axis", type=str, required=True)
     parser.add_argument("--layer", type=int, default=20)
     parser.add_argument("--projection-model", type=str, default=DEFAULT_MODEL)
+    parser.add_argument(
+        "--generation-model",
+        type=str,
+        default=DEFAULT_MODEL,
+        help="Model forwarded to project/run_user_trait_pipeline.py",
+    )
+    parser.add_argument(
+        "--gpu-memory-utilization",
+        type=float,
+        default=0.8,
+        help="vLLM GPU memory utilization passed through to generation",
+    )
+    parser.add_argument(
+        "--max-model-len",
+        type=int,
+        default=2048,
+        help="Model context length passed through to generation",
+    )
+    parser.add_argument(
+        "--tensor-parallel-size",
+        type=int,
+        default=None,
+        help="Tensor parallel size passed through to generation",
+    )
 
     parser.add_argument(
         "--text-keys",
@@ -49,6 +73,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=str, required=True)
 
     return parser.parse_args()
+
+
 def load_axis(axis_path: Path, layer: int) -> dict[str, Any]:
     data = torch.load(axis_path, map_location="cpu")
 
@@ -163,19 +189,32 @@ def extract_text(row: dict[str, Any], text_keys: list[str]) -> tuple[str, str]:
     raise KeyError(f"Could not find text field in row. Available keys: {list(row.keys())}")
 
 
-def build_pipeline_cmd(trait: str, run_name: str, seed: int) -> list[str]:
-    return [
+def build_pipeline_cmd(args: argparse.Namespace, run_name: str, seed: int) -> list[str]:
+    cmd = [
         "uv",
         "run",
         "python",
         "project/run_user_trait_pipeline.py",
         "--trait",
-        trait,
+        args.trait,
         "--run-name",
         run_name,
+        "--generation-model",
+        args.generation_model,
         "--seed",
         str(seed),
+        "--max-tokens",
+        "128",
+        "--max-model-len",
+        str(args.max_model_len),
+        "--gpu-memory-utilization",
+        str(args.gpu_memory_utilization),
     ]
+
+    if args.tensor_parallel_size is not None:
+        cmd += ["--tensor-parallel-size", str(args.tensor_parallel_size)]
+
+    return cmd
 
 
 def build_selected_path(trait: str, run_name: str) -> Path:
@@ -195,8 +234,12 @@ def main() -> None:
     print_kv("Axis", args.axis)
     print_kv("Layer", args.layer)
     print_kv("Projection model", args.projection_model)
+    print_kv("Generation model", args.generation_model)
     print_kv("Runs", args.num_runs)
     print_kv("Base seed", args.base_seed)
+    print_kv("GPU memory utilization", args.gpu_memory_utilization)
+    print_kv("Max model len", args.max_model_len)
+    print_kv("Tensor parallel size", args.tensor_parallel_size)
     print_kv("Output dir", out_dir)
 
     model, tokenizer = load_model(args.projection_model)
@@ -210,7 +253,7 @@ def main() -> None:
         seed = args.base_seed + i
         run_name = f"{run_prefix}_{i:03d}_seed_{seed}"
 
-        run_cmd(build_pipeline_cmd(args.trait, run_name, seed), cwd=REPO_ROOT)
+        run_cmd(build_pipeline_cmd(args, run_name, seed), cwd=REPO_ROOT)
 
         selected_path = build_selected_path(args.trait, run_name)
         if not selected_path.exists():
