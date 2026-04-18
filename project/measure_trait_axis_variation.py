@@ -242,24 +242,38 @@ def main() -> None:
     print_kv("Tensor parallel size", args.tensor_parallel_size)
     print_kv("Output dir", out_dir)
 
-    model, tokenizer = load_model(args.projection_model)
-
     run_prefix = args.run_prefix or f"{args.trait}_variation"
+    run_records: list[dict[str, Any]] = []
+
+    print_header("Stage 1: Pipeline Runs")
+    for i in range(args.num_runs):
+        seed = args.base_seed + i
+        run_name = f"{run_prefix}_{i:03d}_seed_{seed}"
+        selected_path = build_selected_path(args.trait, run_name)
+
+        run_cmd(build_pipeline_cmd(args, run_name, seed), cwd=REPO_ROOT)
+
+        if not selected_path.exists():
+            raise FileNotFoundError(f"Selected file not found: {selected_path}")
+
+        run_records.append(
+            {
+                "run_idx": i,
+                "run_name": run_name,
+                "seed": seed,
+                "selected_path": selected_path,
+            }
+        )
+        print(f"{run_name}: selected rows ready at {selected_path}")
+
+    print_header("Stage 2: Projection Scoring")
+    model, tokenizer = load_model(args.projection_model)
 
     all_rows: list[dict[str, Any]] = []
     per_run_rows: list[dict[str, Any]] = []
 
-    for i in range(args.num_runs):
-        seed = args.base_seed + i
-        run_name = f"{run_prefix}_{i:03d}_seed_{seed}"
-
-        run_cmd(build_pipeline_cmd(args, run_name, seed), cwd=REPO_ROOT)
-
-        selected_path = build_selected_path(args.trait, run_name)
-        if not selected_path.exists():
-            raise FileNotFoundError(f"Selected file not found: {selected_path}")
-
-        selected_rows = load_jsonl(selected_path)
+    for record in run_records:
+        selected_rows = load_jsonl(record["selected_path"])
         run_scores: list[float] = []
 
         for selected_idx, row in enumerate(selected_rows):
@@ -278,9 +292,9 @@ def main() -> None:
             all_rows.append(
                 {
                     "trait": args.trait,
-                    "run_name": run_name,
-                    "run_idx": i,
-                    "seed": seed,
+                    "run_name": record["run_name"],
+                    "run_idx": record["run_idx"],
+                    "seed": record["seed"],
                     "selected_idx": selected_idx,
                     "axis_path": args.axis,
                     "axis_trait": axis_info["trait"],
@@ -298,9 +312,9 @@ def main() -> None:
         run_summary.update(
             {
                 "trait": args.trait,
-                "run_name": run_name,
-                "run_idx": i,
-                "seed": seed,
+                "run_name": record["run_name"],
+                "run_idx": record["run_idx"],
+                "seed": record["seed"],
                 "num_selected": len(selected_rows),
                 "axis_path": args.axis,
                 "axis_trait": axis_info["trait"],
@@ -310,7 +324,7 @@ def main() -> None:
 
         mean_str = "None" if run_summary["mean"] is None else f"{run_summary['mean']:.4f}"
         std_str = "None" if run_summary["std"] is None else f"{run_summary['std']:.4f}"
-        print(f"{run_name}: mean={mean_str} std={std_str} n={run_summary['count']}")
+        print(f"{record['run_name']}: mean={mean_str} std={std_str} n={run_summary['count']}")
 
     overall_scores = [row["projection_score"] for row in all_rows]
     overall_summary = summarize(overall_scores)
