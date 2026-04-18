@@ -25,6 +25,7 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--trait", type=str, required=True)
     parser.add_argument("--num-runs", type=int, default=20)
+    parser.add_argument("--num-candidates", type=int, default=5)
     parser.add_argument("--base-seed", type=int, default=1000)
     parser.add_argument("--run-prefix", type=str, default=None)
 
@@ -209,6 +210,8 @@ def build_pipeline_cmd(args: argparse.Namespace, run_name: str, seed: int) -> li
         run_name,
         "--generation-model",
         args.generation_model,
+        "--num-candidates",
+        str(args.num_candidates),
         "--seed",
         str(seed),
         "--max-tokens",
@@ -244,6 +247,7 @@ def main() -> None:
     print_kv("Projection model", args.projection_model)
     print_kv("Generation model", args.generation_model)
     print_kv("Runs", args.num_runs)
+    print_kv("Candidates per intent", args.num_candidates)
     print_kv("Base seed", args.base_seed)
     print_kv("GPU memory utilization", args.gpu_memory_utilization)
     print_kv("Max model len", args.max_model_len)
