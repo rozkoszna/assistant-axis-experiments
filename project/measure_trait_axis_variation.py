@@ -59,8 +59,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--text-keys",
         nargs="+",
-        default=["trait_response", "response", "text", "prompt", "user_prompt"],
-        help="Candidate keys to use when extracting prompt text from selected rows.",
+        default=[
+            "trait_prompt",
+            "neutral_prompt",
+            "trait_response",
+            "response",
+            "text",
+            "prompt",
+            "user_prompt",
+        ],
+        help="Candidate keys to use when extracting text from selected rows.",
     )
 
     parser.add_argument(
