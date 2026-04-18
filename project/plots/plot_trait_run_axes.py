@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
+from plot_utils import aggregate, infer_run_label, load_jsonl
 
 
 def parse_args() -> argparse.Namespace:
@@ -35,64 +35,25 @@ def parse_args() -> argparse.Namespace:
         help="Optional custom title",
     )
     return parser.parse_args()
-
-
-def read_jsonl(path: Path) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    with open(path, "r") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                rows.append(json.loads(line))
-    return rows
-
-
 def get_metric_value(row: dict[str, Any], metric: str) -> float:
     if metric == "delta":
-        return float(row["projection_delta_neutral_minus_trait"])
+        return float(row["projection_delta_trait_minus_neutral"])
     if metric == "neutral":
         return float(row["projection_score_neutral"])
     if metric == "trait":
         return float(row["projection_score_trait"])
     raise ValueError(f"Unknown metric: {metric}")
-
-
-def aggregate(values: list[float], mode: str) -> float:
-    if not values:
-        raise ValueError("Cannot aggregate empty list")
-
-    if mode == "mean":
-        return sum(values) / len(values)
-
-    if mode == "median":
-        values = sorted(values)
-        n = len(values)
-        mid = n // 2
-        if n % 2 == 1:
-            return values[mid]
-        return (values[mid - 1] + values[mid]) / 2.0
-
-    raise ValueError(f"Unknown aggregate mode: {mode}")
-
-
 def infer_trait_run_name(path: Path, rows: list[dict[str, Any]]) -> str:
     if rows and "trait" in rows[0]:
         return str(rows[0]["trait"])
-
-    parts = path.parts
-    if "user_prompts" in parts:
-        idx = parts.index("user_prompts")
-        if idx + 1 < len(parts):
-            return parts[idx + 1]
-
-    return path.stem
+    return infer_run_label(path)
 
 
 def main() -> None:
     args = parse_args()
 
     input_path = Path(args.input)
-    rows = read_jsonl(input_path)
+    rows = load_jsonl(input_path)
 
     if not rows:
         raise ValueError(f"No rows found in {input_path}")

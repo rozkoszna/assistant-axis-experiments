@@ -75,19 +75,19 @@ Notes
 from __future__ import annotations
 
 import argparse
-import json
-import subprocess
 from pathlib import Path
 
+from io_utils import load_trait_list
+from pipeline_utils import (
+    add_generation_args,
+    add_judge_args,
+    add_projection_args,
+    add_selection_args,
+    get_projection_output_path,
+    run_cmd,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-
-DEFAULT_GEN_MODEL = "meta-llama/Llama-3.1-8B-Instruct"
-DEFAULT_JUDGE_MODEL = "gpt-4.1-mini"
-DEFAULT_PROJECTION_MODEL = DEFAULT_GEN_MODEL
-DEFAULT_INTENTS_FILE = "data/user_prompt_intents.jsonl"
-DEFAULT_NUM_CANDIDATES = 5
-DEFAULT_PROJECTION_LAYER = 20
 
 
 def parse_args() -> argparse.Namespace:
@@ -123,61 +123,16 @@ def parse_args() -> argparse.Namespace:
     )
 
     # Shared pipeline args
-    parser.add_argument("--intents-file", type=str, default=DEFAULT_INTENTS_FILE)
-    parser.add_argument("--generation-model", type=str, default=DEFAULT_GEN_MODEL)
-    parser.add_argument("--judge-model", type=str, default=DEFAULT_JUDGE_MODEL)
-    parser.add_argument("--projection-model", type=str, default=DEFAULT_PROJECTION_MODEL)
-
-    parser.add_argument("--num-candidates", type=int, default=DEFAULT_NUM_CANDIDATES)
-    parser.add_argument("--temperature", type=float, default=0.8)
-    parser.add_argument("--max-tokens", type=int, default=128)
-    parser.add_argument("--top-p", type=float, default=0.95)
-    parser.add_argument("--max-model-len", type=int, default=2048)
-    parser.add_argument("--tensor-parallel-size", type=int, default=None)
-    parser.add_argument("--gpu-memory-utilization", type=float, default=0.95)
-    parser.add_argument("--seed", type=int, default=None)
-    parser.add_argument("--shuffle-intents", action="store_true")
+    add_generation_args(parser)
 
     # Selection args
-    parser.add_argument("--selection-mode", choices=["best_one", "top_k", "threshold"], default="best_one")
-    parser.add_argument("--top-k", type=int, default=3)
-    parser.add_argument("--threshold-score", type=float, default=85.0)
-    parser.add_argument("--min-neutral-score", type=int, default=75)
-    parser.add_argument("--min-trait-score", type=int, default=75)
-    parser.add_argument("--min-pair-score", type=int, default=80)
-    parser.add_argument("--min-final-score", type=float, default=0.0)
-    parser.add_argument("--no-dedupe", action="store_true")
+    add_selection_args(parser)
 
     # Judge args
-    parser.add_argument("--judge-max-tokens", type=int, default=16)
-    parser.add_argument("--requests-per-second", type=int, default=50)
-    parser.add_argument("--batch-size", type=int, default=50)
-    parser.add_argument("--neutral-weight", type=float, default=0.2)
-    parser.add_argument("--trait-weight", type=float, default=0.3)
-    parser.add_argument("--pair-weight", type=float, default=0.5)
+    add_judge_args(parser)
 
     # Projection args
-    parser.add_argument("--axes-dir", type=str, required=True, help="Directory of .pt axis files")
-    parser.add_argument(
-        "--projection-mode",
-        choices=["all", "one", "subset"],
-        default="all",
-        help="Project on all axes, one axis by name, or a subset from JSON",
-    )
-    parser.add_argument("--axis-trait", type=str, default=None, help="Axis trait name for projection-mode=one")
-    parser.add_argument(
-        "--axis-traits-file",
-        type=str,
-        default=None,
-        help="JSON file containing a list of axis trait names for projection-mode=subset",
-    )
-    parser.add_argument("--projection-layer", type=int, default=DEFAULT_PROJECTION_LAYER)
-    parser.add_argument(
-        "--projection-script",
-        type=str,
-        default="project/project_pair_axes.py",
-        help="Path to pair projection script",
-    )
+    add_projection_args(parser, axes_dir_required=True, include_projection_toggle=False)
 
     # Per-run plot
     parser.add_argument(
@@ -208,23 +163,6 @@ def parse_args() -> argparse.Namespace:
     )
 
     return parser.parse_args()
-
-
-def run_cmd(cmd: list[str]) -> None:
-    print("\n$", " ".join(cmd), flush=True)
-    subprocess.run(cmd, check=True, cwd=REPO_ROOT)
-
-
-def load_trait_list(path: Path) -> list[str]:
-    with open(path, "r") as f:
-        data = json.load(f)
-
-    if not isinstance(data, list) or not all(isinstance(x, str) for x in data):
-        raise ValueError(f"{path} must contain a JSON list of strings")
-
-    return data
-
-
 def get_user_traits(args: argparse.Namespace) -> list[str]:
     if args.user_traits is not None:
         return args.user_traits
@@ -329,10 +267,6 @@ def build_single_trait_cmd(args: argparse.Namespace, trait: str, run_name: str) 
     return cmd
 
 
-def get_projection_file(trait: str, run_name: str) -> Path:
-    return REPO_ROOT / "outputs" / "user_prompts" / trait / "projections" / f"{run_name}.jsonl"
-
-
 def build_comparison_plot_cmd(
     args: argparse.Namespace,
     projection_files: list[Path],
@@ -400,9 +334,9 @@ def main() -> None:
         )
 
         cmd = build_single_trait_cmd(args, trait, run_name)
-        run_cmd(cmd)
+        run_cmd(cmd, cwd=REPO_ROOT)
 
-        projection_file = get_projection_file(trait, run_name)
+        projection_file = get_projection_output_path(REPO_ROOT, trait, run_name)
         if not projection_file.exists():
             raise FileNotFoundError(f"Expected projection file not found: {projection_file}")
 
@@ -413,7 +347,7 @@ def main() -> None:
         print(f"  - {path}")
 
     comparison_cmd = build_comparison_plot_cmd(args, projection_files)
-    run_cmd(comparison_cmd)
+    run_cmd(comparison_cmd, cwd=REPO_ROOT)
 
     print("\nMulti-trait analysis finished successfully.")
 
