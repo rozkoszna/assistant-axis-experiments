@@ -82,12 +82,14 @@ def passes_thresholds(
     min_trait_score: int,
     min_pair_score: int,
     min_final_score: float,
+    max_final_score: float | None,
 ) -> bool:
     return (
         row.neutral_score >= min_neutral_score
         and row.trait_score >= min_trait_score
         and row.pair_score >= min_pair_score
         and row.final_score >= min_final_score
+        and (max_final_score is None or row.final_score < max_final_score)
     )
 
 
@@ -153,6 +155,7 @@ def select_rows(
     min_trait_score: int,
     min_pair_score: int,
     min_final_score: float,
+    max_final_score: float | None,
     dedupe: bool,
     keep_empty_groups: bool,
 ) -> list[JudgedCandidatePair]:
@@ -172,6 +175,7 @@ def select_rows(
                 min_trait_score=min_trait_score,
                 min_pair_score=min_pair_score,
                 min_final_score=min_final_score,
+                max_final_score=max_final_score,
             )
         ]
 
@@ -232,6 +236,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min_trait_score", type=int, default=75)
     parser.add_argument("--min_pair_score", type=int, default=80)
     parser.add_argument("--min_final_score", type=float, default=0.0)
+    parser.add_argument(
+        "--max_final_score",
+        type=float,
+        default=None,
+        help="Optional exclusive upper bound on final_score, useful for score bands like 80-85.",
+    )
     parser.add_argument("--no_dedupe", action="store_true")
     parser.add_argument("--keep_empty_groups", action="store_true")
     return parser.parse_args()
@@ -260,6 +270,7 @@ def main() -> None:
         min_trait_score=args.min_trait_score,
         min_pair_score=args.min_pair_score,
         min_final_score=args.min_final_score,
+        max_final_score=args.max_final_score,
         dedupe=not args.no_dedupe,
         keep_empty_groups=args.keep_empty_groups,
     )
