@@ -1,0 +1,18 @@
+{
+  "count": 12,
+  "mean": -0.67479241391023,
+  "std": 0.47277311769856983,
+  "min": -1.3045965433120728,
+  "max": 0.09662303328514099,
+  "trait": "confused",
+  "axis_path": "precomputed_axis/answer_mean/filter_matched_pairs_ge_50_count_ge_10_total/decisive.pt",
+  "axis_trait": "decisive",
+  "activation_position": "answer_mean",
+  "projection_model": "meta-llama/Llama-3.1-8B-Instruct",
+  "layer": 20,
+  "num_runs_requested": 4,
+  "num_runs_completed": 4,
+  "run_prefix": "confused_variation",
+  "base_seed": 1000,
+  "hidden_state_indexing": "as_is"
+}
