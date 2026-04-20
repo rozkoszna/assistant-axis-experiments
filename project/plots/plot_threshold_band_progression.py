@@ -20,17 +20,28 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--aggregate", choices=["mean", "median"], default="mean")
     parser.add_argument("--top-k-axes", type=int, default=20)
     parser.add_argument("--rank-by", choices=["spread", "abs_mean"], default="spread")
+    parser.add_argument(
+        "--include-neutral",
+        action="store_true",
+        help="Also include a Neutral series aggregated from projection_score_neutral across all input files.",
+    )
+    parser.add_argument("--neutral-label", type=str, default="Neutral")
     parser.add_argument("--title", type=str, default=None)
     return parser.parse_args()
 
 
-def collect_axis_values(rows: list[dict[str, Any]], aggregate_mode: str) -> dict[str, float]:
+def collect_axis_values(
+    rows: list[dict[str, Any]],
+    aggregate_mode: str,
+    *,
+    value_key: str,
+) -> dict[str, float]:
     by_axis: dict[str, list[float]] = {}
     for row in rows:
         axis = row.get("projection_trait")
         if axis is None:
             continue
-        by_axis.setdefault(axis, []).append(float(row["projection_score_trait"]))
+        by_axis.setdefault(axis, []).append(float(row[value_key]))
 
     return {axis: aggregate(values, aggregate_mode) for axis, values in by_axis.items()}
 
@@ -42,11 +53,35 @@ def main() -> None:
         raise ValueError("--inputs and --labels must have the same length")
 
     series: list[tuple[str, dict[str, float]]] = []
+    neutral_rows_all_inputs: list[dict[str, Any]] = []
     for input_path, label in zip(args.inputs, args.labels):
         rows = load_jsonl(Path(input_path))
         if not rows:
             raise ValueError(f"No rows found in {input_path}")
-        series.append((label, collect_axis_values(rows, args.aggregate)))
+        series.append(
+            (
+                label,
+                collect_axis_values(
+                    rows,
+                    args.aggregate,
+                    value_key="projection_score_trait",
+                ),
+            )
+        )
+        neutral_rows_all_inputs.extend(rows)
+
+    if args.include_neutral:
+        series.insert(
+            0,
+            (
+                args.neutral_label,
+                collect_axis_values(
+                    neutral_rows_all_inputs,
+                    args.aggregate,
+                    value_key="projection_score_neutral",
+                ),
+            ),
+        )
 
     common_axes = None
     for _, axis_map in series:
@@ -90,7 +125,14 @@ def main() -> None:
     plt.xticks(x_positions, axis_traits, rotation=45, ha="right")
     plt.xlabel("Projection axis")
     plt.ylabel(f"{args.aggregate} projection score")
-    plt.title(args.title or "Threshold-band progression across projection axes")
+    plt.title(
+        args.title
+        or (
+            "Threshold-band progression vs Neutral across projection axes"
+            if args.include_neutral
+            else "Threshold-band progression across projection axes"
+        )
+    )
     plt.legend()
     plt.tight_layout()
 

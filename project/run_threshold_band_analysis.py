@@ -123,6 +123,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--no-dedupe", action="store_true")
     parser.add_argument("--with-plot", action="store_true")
+    parser.add_argument(
+        "--include-neutral-in-plot",
+        action="store_true",
+        help="Include a Neutral series in the plot using projection_score_neutral aggregated across all band files.",
+    )
+    parser.add_argument("--neutral-label", type=str, default="Neutral")
     parser.add_argument("--plot-output", type=str, default=None)
     parser.add_argument("--plot-top-k-axes", type=int, default=20)
     parser.add_argument("--plot-rank-by", choices=["spread", "abs_mean"], default="spread")
@@ -214,6 +220,8 @@ def main() -> None:
             "--rank-by",
             args.plot_rank_by,
         ]
+        if args.include_neutral_in_plot:
+            plot_cmd += ["--include-neutral", "--neutral-label", args.neutral_label]
         if args.plot_title:
             plot_cmd += ["--title", args.plot_title]
         run_cmd(plot_cmd, cwd=REPO_ROOT)
