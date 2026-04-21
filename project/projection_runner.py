@@ -6,7 +6,7 @@ This module does NOT implement projection math itself.
 Instead, it:
 1. Chooses which axis (.pt) files to use.
 2. Iterates over selected neutral-vs-trait rows from one user-trait run.
-3. Calls the projection script (e.g. project_pair_axes.py) once per pair.
+3. Uses the default pair-projection logic in-process when possible.
 4. Filters and merges results into a single JSONL output.
 
 Key idea:
@@ -37,7 +37,7 @@ needed for both:
 - a reusable neutral baseline file for the same run
 
 This module is essentially a batch runner + result merger around the
-projection CLI script.
+pair-projection logic.
 """
 
 
@@ -151,68 +151,121 @@ def run_projection_for_selected(
         if axis_file.parent != axes_dir:
             raise ValueError("All axis files must come from the same axes directory")
 
+    use_optimized_path = projection_script.name == "project_pair_axes.py"
+
     all_rows: list[dict[str, Any]] = []
-    temp_dir = output_file.parent / ".tmp_pair_projection"
-    temp_dir.mkdir(parents=True, exist_ok=True)
+    if use_optimized_path:
+        from project_pair_axes import load_axis_vector, project_text_pair
+        from project_text_axis import load_model
 
-    for idx, row in enumerate(selected_rows):
-        if not row.get("neutral_response") or not row.get("trait_response"):
-            raise ValueError(
-                "Projection requires response fields on every selected row. "
-                f"Missing response text in row index {idx} from {selected_file}. "
-                "Run response generation first instead of projecting prompts."
+        axes = [load_axis_vector(path, layer) for path in axis_files]
+
+        print(
+            f"Using in-process projection path for {len(selected_rows)} rows "
+            f"across {len(axes)} axes."
+        )
+        model, tokenizer = load_model(model_name)
+
+        for idx, row in enumerate(selected_rows):
+            if not row.get("neutral_response") or not row.get("trait_response"):
+                raise ValueError(
+                    "Projection requires response fields on every selected row. "
+                    f"Missing response text in row index {idx} from {selected_file}. "
+                    "Run response generation first instead of projecting prompts."
+                )
+
+            label_a = "neutral_response"
+            label_b = "trait_response"
+            pair_rows = project_text_pair(
+                model=model,
+                tokenizer=tokenizer,
+                axes=axes,
+                text_a=row["neutral_response"],
+                text_b=row["trait_response"],
+                label_a=label_a,
+                label_b=label_b,
+                layer=layer,
             )
 
-        pair_out = temp_dir / f"pair_{idx:05d}.jsonl"
-        text_a = row["neutral_response"]
-        text_b = row["trait_response"]
-        label_a = "neutral_response"
-        label_b = "trait_response"
+            for pair_row in pair_rows:
+                merged = dict(row)
+                merged.update(
+                    {
+                        "projection_trait": pair_row["trait"],
+                        "projection_axis_path": pair_row["axis_path"],
+                        "projection_activation_position": pair_row["activation_position"],
+                        "projection_filter_name": pair_row["filter_name"],
+                        "projection_layer": pair_row["layer"],
+                        "projection_score_neutral": pair_row["score_a"],
+                        "projection_score_trait": pair_row["score_b"],
+                        "projection_delta_trait_minus_neutral": pair_row["delta_b_minus_a"],
+                        "projection_text_source_neutral": label_a,
+                        "projection_text_source_trait": label_b,
+                    }
+                )
+                all_rows.append(merged)
+    else:
+        temp_dir = output_file.parent / ".tmp_pair_projection"
+        temp_dir.mkdir(parents=True, exist_ok=True)
 
-        cmd = [
-            "uv",
-            "run",
-            "python",
-            str(projection_script),
-            "--axes-dir",
-            str(axes_dir),
-            "--model-name",
-            model_name,
-            "--layer",
-            str(layer),
-            "--text-a",
-            text_a,
-            "--text-b",
-            text_b,
-            "--label-a",
-            label_a,
-            "--label-b",
-            label_b,
-            "--output",
-            str(pair_out),
-        ]
-        run_cmd(cmd)
+        for idx, row in enumerate(selected_rows):
+            if not row.get("neutral_response") or not row.get("trait_response"):
+                raise ValueError(
+                    "Projection requires response fields on every selected row. "
+                    f"Missing response text in row index {idx} from {selected_file}. "
+                    "Run response generation first instead of projecting prompts."
+                )
 
-        pair_rows = load_jsonl(pair_out)
-        pair_rows = [r for r in pair_rows if r["trait"] in requested_traits]
+            pair_out = temp_dir / f"pair_{idx:05d}.jsonl"
+            text_a = row["neutral_response"]
+            text_b = row["trait_response"]
+            label_a = "neutral_response"
+            label_b = "trait_response"
 
-        for pair_row in pair_rows:
-            merged = dict(row)
-            merged.update(
-                {
-                    "projection_trait": pair_row["trait"],
-                    "projection_axis_path": pair_row["axis_path"],
-                    "projection_activation_position": pair_row["activation_position"],
-                    "projection_filter_name": pair_row["filter_name"],
-                    "projection_layer": pair_row["layer"],
-                    "projection_score_neutral": pair_row["score_a"],
-                    "projection_score_trait": pair_row["score_b"],
-                    "projection_delta_trait_minus_neutral": pair_row["delta_b_minus_a"],
-                    "projection_text_source_neutral": label_a,
-                    "projection_text_source_trait": label_b,
-                }
-            )
-            all_rows.append(merged)
+            cmd = [
+                "uv",
+                "run",
+                "python",
+                str(projection_script),
+                "--axes-dir",
+                str(axes_dir),
+                "--model-name",
+                model_name,
+                "--layer",
+                str(layer),
+                "--text-a",
+                text_a,
+                "--text-b",
+                text_b,
+                "--label-a",
+                label_a,
+                "--label-b",
+                label_b,
+                "--output",
+                str(pair_out),
+            ]
+            run_cmd(cmd)
+
+            pair_rows = load_jsonl(pair_out)
+            pair_rows = [r for r in pair_rows if r["trait"] in requested_traits]
+
+            for pair_row in pair_rows:
+                merged = dict(row)
+                merged.update(
+                    {
+                        "projection_trait": pair_row["trait"],
+                        "projection_axis_path": pair_row["axis_path"],
+                        "projection_activation_position": pair_row["activation_position"],
+                        "projection_filter_name": pair_row["filter_name"],
+                        "projection_layer": pair_row["layer"],
+                        "projection_score_neutral": pair_row["score_a"],
+                        "projection_score_trait": pair_row["score_b"],
+                        "projection_delta_trait_minus_neutral": pair_row["delta_b_minus_a"],
+                        "projection_text_source_neutral": label_a,
+                        "projection_text_source_trait": label_b,
+                    }
+                )
+                all_rows.append(merged)
 
     write_jsonl(all_rows, output_file)
     print(f"Saved {len(all_rows)} projection rows to {output_file}")

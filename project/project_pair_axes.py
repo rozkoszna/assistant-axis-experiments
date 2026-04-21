@@ -152,29 +152,42 @@ def write_jsonl(rows: list[dict[str, Any]], path: Path) -> None:
             f.write(json.dumps(row) + "\n")
 
 
-def main() -> None:
-    """Project both input texts onto the requested axes and save all per-axis scores."""
-    args = parse_args()
-
-    axes_dir = Path(args.axes_dir)
-    repo_root = Path(__file__).resolve().parent.parent
+def load_axes_for_projection(
+    *,
+    repo_root: Path,
+    axes_dir: Path,
+    projection_mode: str,
+    axis_trait: str | None,
+    axis_traits_file: str | None,
+    layer: int,
+) -> list[dict[str, Any]]:
+    """Resolve and load all requested axis vectors for one projection job."""
     axis_paths = resolve_axis_files(
         repo_root=repo_root,
         axes_dir=axes_dir,
-        projection_mode=args.projection_mode,
-        axis_trait=args.axis_trait,
-        traits_file=args.axis_traits_file,
+        projection_mode=projection_mode,
+        axis_trait=axis_trait,
+        traits_file=axis_traits_file,
     )
     if not axis_paths:
         raise ValueError(f"No .pt files found in {axes_dir}")
+    return [load_axis_vector(path, layer) for path in axis_paths]
 
-    print(f"Found {len(axis_paths)} axis files for projection")
-    axes = [load_axis_vector(path, args.layer) for path in axis_paths]
 
-    model, tokenizer = load_model(args.model_name)
-
-    vec_a = text_vector(model, tokenizer, args.text_a, args.layer)
-    vec_b = text_vector(model, tokenizer, args.text_b, args.layer)
+def project_text_pair(
+    *,
+    model,
+    tokenizer,
+    axes: list[dict[str, Any]],
+    text_a: str,
+    text_b: str,
+    label_a: str,
+    label_b: str,
+    layer: int,
+) -> list[dict[str, Any]]:
+    """Project one text pair onto a preloaded list of axes using one loaded model."""
+    vec_a = text_vector(model, tokenizer, text_a, layer)
+    vec_b = text_vector(model, tokenizer, text_b, layer)
 
     results: list[dict[str, Any]] = []
     for axis_info in axes:
@@ -188,19 +201,49 @@ def main() -> None:
                 "axis_path": axis_info["path"],
                 "activation_position": axis_info["activation_position"],
                 "filter_name": axis_info["filter_name"],
-                "layer": args.layer,
-                "label_a": args.label_a,
-                "label_b": args.label_b,
-                "text_a": args.text_a,
-                "text_b": args.text_b,
+                "layer": layer,
+                "label_a": label_a,
+                "label_b": label_b,
+                "text_a": text_a,
+                "text_b": text_b,
                 "score_a": score_a,
                 "score_b": score_b,
                 "delta_a_minus_b": score_a - score_b,
-                "delta_b_minus_a": score_b - score_a,   
+                "delta_b_minus_a": delta_b_minus_a,
             }
         )
 
     results.sort(key=lambda x: abs(x["delta_b_minus_a"]), reverse=True)
+    return results
+
+
+def main() -> None:
+    """Project both input texts onto the requested axes and save all per-axis scores."""
+    args = parse_args()
+
+    axes_dir = Path(args.axes_dir)
+    repo_root = Path(__file__).resolve().parent.parent
+    axes = load_axes_for_projection(
+        repo_root=repo_root,
+        axes_dir=axes_dir,
+        projection_mode=args.projection_mode,
+        axis_trait=args.axis_trait,
+        axis_traits_file=args.axis_traits_file,
+        layer=args.layer,
+    )
+    print(f"Found {len(axes)} axis files for projection")
+
+    model, tokenizer = load_model(args.model_name)
+    results = project_text_pair(
+        model=model,
+        tokenizer=tokenizer,
+        axes=axes,
+        text_a=args.text_a,
+        text_b=args.text_b,
+        label_a=args.label_a,
+        label_b=args.label_b,
+        layer=args.layer,
+    )
     
     output_path = Path(args.output)
     write_jsonl(results, output_path)
