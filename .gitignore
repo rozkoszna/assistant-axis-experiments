@@ -9,6 +9,7 @@ __pycache__/
 *.bin
 *.safetensors
 *.jsonl
+!data/user_prompt_intents.jsonl
 build/
 develop-eggs/
 dist/
