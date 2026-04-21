@@ -141,7 +141,7 @@ This is the key response-level file for trait-alignment experiments.
 Files:
 - `project/projection_runner.py`
 - `project/project_pair_axes.py`
-- `project/project_prompt_axis.py`
+- `project/project_text_axis.py`
 
 Purpose:
 - Projects text pairs onto one or more precomputed axes.
@@ -356,10 +356,10 @@ File:
 Use when:
 - you want the full trait-by-axis matrix
 
-### Threshold bands
+### Score-range comparison
 
 File:
-- `project/plots/plot_threshold_band_progression.py`
+- `project/plots/plot_trait_progression.py`
 
 Use when:
 - you want score-band series across axes

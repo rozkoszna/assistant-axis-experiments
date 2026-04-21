@@ -1,4 +1,42 @@
 #!/usr/bin/env python3
+"""
+Plot one or more projection series across a shared set of assistant axes.
+
+This is the main comparison plotter for the user-trait pipeline.
+
+It supports both common use cases:
+
+1. Trait progression:
+   Compare a baseline series plus several trait or intensity runs, for example
+   `neutral` vs `little confused` vs `confused` vs `very confused`.
+
+2. Score-range comparison:
+   Compare several selected groups from the same judged pool, for example
+   `89-92`, `92-94`, and `94-100`, optionally with an aggregated Neutral line.
+
+Input model
+-----------
+- `--baseline-input` reads one JSONL file and plots its
+  `projection_score_neutral` values as a baseline series.
+- `--trait-inputs` reads one or more JSONL files and plots one chosen value
+  from each file:
+  - `projection_score_trait`
+  - `projection_score_neutral`
+  - `projection_delta_trait_minus_neutral`
+- `--include-neutral` aggregates `projection_score_neutral` across all
+  `--trait-inputs` and inserts that as an additional series.
+
+Ranking
+-------
+Axes are restricted to the axes shared by every series, then ranked by:
+- `spread`: max minus min across plotted series
+- `abs_mean`: average absolute value across plotted series
+
+Notes
+-----
+- If you want one plotting entrypoint, use this script directly.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -10,35 +48,76 @@ from plot_utils import aggregate, load_jsonl, write_csv
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse CLI arguments for plotting several series across many axes."""
+    """Parse CLI arguments for trait, neutral, and score-range comparison plots."""
     parser = argparse.ArgumentParser(
-        description="Plot trait progression across axes using absolute projection values."
+        description=(
+            "Plot several projection series across many axes. "
+            "Use this for both trait-progression and score-range comparison plots."
+        )
     )
     parser.add_argument(
         "--baseline-input",
         type=str,
-        required=True,
-        help="Projection JSONL file used to read baseline/neutral scores",
+        default=None,
+        help=(
+            "Optional projection JSONL file used to read a baseline series from "
+            "`projection_score_neutral`."
+        ),
     )
     parser.add_argument(
         "--trait-inputs",
         type=str,
         nargs="+",
-        required=True,
-        help="Projection JSONL files for trait runs",
+        default=None,
+        help=(
+            "Projection JSONL files for the non-baseline series. These may be "
+            "trait runs, intensity runs, or score-band runs."
+        ),
+    )
+    parser.add_argument(
+        "--inputs",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Compatibility alias for --trait-inputs.",
     )
     parser.add_argument(
         "--trait-labels",
         type=str,
         nargs="+",
-        required=True,
-        help="Display labels for trait runs, same order as --trait-inputs",
+        default=None,
+        help="Display labels for the plotted non-baseline series, same order as --trait-inputs",
+    )
+    parser.add_argument(
+        "--labels",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Compatibility alias for --trait-labels.",
     )
     parser.add_argument(
         "--baseline-label",
         type=str,
         default="neutral",
         help="Display label for the baseline series",
+    )
+    parser.add_argument(
+        "--include-neutral",
+        action="store_true",
+        help=(
+            "Also include a Neutral series aggregated from "
+            "`projection_score_neutral` across all `--trait-inputs`."
+        ),
+    )
+    parser.add_argument(
+        "--trait-value-key",
+        choices=["projection_score_trait", "projection_score_neutral", "projection_delta_trait_minus_neutral"],
+        default="projection_score_trait",
+        help=(
+            "Which value to read from each non-baseline input file. "
+            "`projection_score_trait` is the usual choice for trait runs and "
+            "score-band runs."
+        ),
     )
     parser.add_argument(
         "--output",
@@ -62,7 +141,7 @@ def parse_args() -> argparse.Namespace:
         "--top-k-axes",
         type=int,
         default=20,
-        help="Keep top K axes ranked by spread across series",
+        help="Keep top K shared axes ranked across the plotted series",
     )
     parser.add_argument(
         "--rank-by",
@@ -95,35 +174,64 @@ def collect_axis_values(
         for axis, values in by_axis.items()
     }
 def main() -> None:
-    """Render a progression-style multi-series plot across shared axes."""
+    """Render a multi-series comparison plot across shared projection axes."""
     args = parse_args()
 
-    if len(args.trait_inputs) != len(args.trait_labels):
+    trait_inputs = args.trait_inputs or args.inputs
+    trait_labels = args.trait_labels or args.labels
+
+    if not trait_inputs or not trait_labels:
+        raise ValueError(
+            "Provide series with --trait-inputs/--trait-labels "
+            "(or the compatibility aliases --inputs/--labels)."
+        )
+
+    if len(trait_inputs) != len(trait_labels):
         raise ValueError("--trait-inputs and --trait-labels must have the same length")
 
-    baseline_rows = load_jsonl(Path(args.baseline_input))
-    if not baseline_rows:
-        raise ValueError(f"No rows found in baseline input: {args.baseline_input}")
+    series: list[tuple[str, dict[str, float]]] = []
+    neutral_rows_all_inputs: list[dict[str, Any]] = []
 
-    baseline_by_axis = collect_axis_values(
-        baseline_rows,
-        value_key="projection_score_neutral",
-        aggregate_mode=args.aggregate,
-    )
+    if args.baseline_input is not None:
+        baseline_rows = load_jsonl(Path(args.baseline_input))
+        if not baseline_rows:
+            raise ValueError(f"No rows found in baseline input: {args.baseline_input}")
 
-    series: list[tuple[str, dict[str, float]]] = [(args.baseline_label, baseline_by_axis)]
+        baseline_by_axis = collect_axis_values(
+            baseline_rows,
+            value_key="projection_score_neutral",
+            aggregate_mode=args.aggregate,
+        )
+        series.append((args.baseline_label, baseline_by_axis))
 
-    for trait_input, trait_label in zip(args.trait_inputs, args.trait_labels):
+    for trait_input, trait_label in zip(trait_inputs, trait_labels):
         rows = load_jsonl(Path(trait_input))
         if not rows:
             raise ValueError(f"No rows found in trait input: {trait_input}")
 
         trait_by_axis = collect_axis_values(
             rows,
-            value_key="projection_score_trait",
+            value_key=args.trait_value_key,
             aggregate_mode=args.aggregate,
         )
         series.append((trait_label, trait_by_axis))
+        neutral_rows_all_inputs.extend(rows)
+
+    if args.include_neutral:
+        series.insert(
+            0,
+            (
+                args.baseline_label,
+                collect_axis_values(
+                    neutral_rows_all_inputs,
+                    value_key="projection_score_neutral",
+                    aggregate_mode=args.aggregate,
+                ),
+            ),
+        )
+
+    if not series:
+        raise ValueError("No series were constructed. Provide trait inputs and/or a baseline input.")
 
     common_axes = None
     for _, axis_map in series:

@@ -286,7 +286,7 @@ def main() -> None:
             "uv",
             "run",
             "python",
-            "project/plots/plot_threshold_band_progression.py",
+            "project/plots/plot_trait_progression.py",
             "--inputs",
             *projection_inputs,
             "--labels",

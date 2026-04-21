@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
+from matplotlib.colors import TwoSlopeNorm
 from plot_utils import aggregate, infer_run_label, load_jsonl, write_csv
 
 
@@ -136,8 +137,12 @@ def main() -> None:
             matrix_row.append(summary_lookup.get((run_label, axis_trait), 0.0))
         matrix.append(matrix_row)
 
+    flat_values = [value for row in matrix for value in row]
+    max_abs_value = max((abs(value) for value in flat_values), default=1.0)
+    color_norm = TwoSlopeNorm(vmin=-max_abs_value, vcenter=0.0, vmax=max_abs_value)
+
     plt.figure(figsize=(max(10, len(axis_traits) * 0.5), max(6, len(run_labels) * 0.5)))
-    plt.imshow(matrix, aspect="auto")
+    plt.imshow(matrix, aspect="auto", cmap="RdBu_r", norm=color_norm)
     plt.colorbar(label=f"{args.aggregate} projection score")
     plt.xticks(range(len(axis_traits)), axis_traits, rotation=45, ha="right")
     plt.yticks(range(len(run_labels)), run_labels)
