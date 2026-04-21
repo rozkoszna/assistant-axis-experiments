@@ -45,7 +45,7 @@ ENV/
 .env.local
 
 # Outputs
-*.parquet
+
 
 # OS
 .DS_Store
