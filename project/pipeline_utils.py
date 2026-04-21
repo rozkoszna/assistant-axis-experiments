@@ -14,11 +14,13 @@ DEFAULT_PROJECTION_LAYER = 20
 
 
 def run_cmd(cmd: list[str], *, cwd: Path) -> None:
+    """Print and execute a subprocess command from the given repo directory."""
     print("\n$", " ".join(cmd), flush=True)
     subprocess.run(cmd, check=True, cwd=cwd)
 
 
 def add_generation_args(parser: argparse.ArgumentParser) -> None:
+    """Attach shared generation-model CLI arguments to a parser."""
     parser.add_argument("--intents-file", type=str, default=DEFAULT_INTENTS_FILE)
     parser.add_argument("--generation-model", type=str, default=DEFAULT_GEN_MODEL)
     parser.add_argument("--judge-model", type=str, default=DEFAULT_JUDGE_MODEL)
@@ -36,6 +38,7 @@ def add_generation_args(parser: argparse.ArgumentParser) -> None:
 
 
 def add_selection_args(parser: argparse.ArgumentParser) -> None:
+    """Attach shared selection/filtering CLI arguments to a parser."""
     parser.add_argument("--selection-mode", choices=["best_one", "top_k", "threshold"], default="best_one")
     parser.add_argument("--top-k", type=int, default=3)
     parser.add_argument("--threshold-score", type=float, default=85.0)
@@ -47,6 +50,7 @@ def add_selection_args(parser: argparse.ArgumentParser) -> None:
 
 
 def add_judge_args(parser: argparse.ArgumentParser) -> None:
+    """Attach shared LLM-judge CLI arguments to a parser."""
     parser.add_argument("--judge-max-tokens", type=int, default=16)
     parser.add_argument("--requests-per-second", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=50)
@@ -61,6 +65,7 @@ def add_projection_args(
     axes_dir_required: bool,
     include_projection_toggle: bool,
 ) -> None:
+    """Attach shared projection CLI arguments to a parser."""
     if include_projection_toggle:
         parser.add_argument("--with-projection", action="store_true")
 
@@ -94,6 +99,7 @@ def add_projection_args(
 
 
 def add_plot_args(parser: argparse.ArgumentParser) -> None:
+    """Attach shared plotting CLI arguments to a parser."""
     parser.add_argument("--with-plot", action="store_true")
     parser.add_argument(
         "--plot-script",
@@ -105,16 +111,19 @@ def add_plot_args(parser: argparse.ArgumentParser) -> None:
 
 
 def build_trait_output_paths(repo_root: Path, trait: str, run_name: str) -> dict[str, Path]:
+    """Return the standard output paths used by one trait/run pipeline execution."""
     trait_dir = repo_root / "outputs" / "user_prompts" / trait
     return {
         "trait_dir": trait_dir,
         "candidates_file": trait_dir / "candidates" / f"{run_name}.jsonl",
         "judged_file": trait_dir / "judged" / f"{run_name}.jsonl",
         "selected_file": trait_dir / "selected" / f"{run_name}.jsonl",
+        "responses_file": trait_dir / "responses" / f"{run_name}.jsonl",
         "projections_file": trait_dir / "projections" / f"{run_name}.jsonl",
         "plot_file": trait_dir / "plots" / f"{run_name}.png",
     }
 
 
 def get_projection_output_path(repo_root: Path, trait: str, run_name: str) -> Path:
+    """Return the projection JSONL path for a specific trait/run pair."""
     return build_trait_output_paths(repo_root, trait, run_name)["projections_file"]

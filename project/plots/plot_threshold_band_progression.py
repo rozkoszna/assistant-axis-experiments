@@ -10,6 +10,7 @@ from plot_utils import aggregate, load_jsonl, write_csv
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for plotting score bands across axes."""
     parser = argparse.ArgumentParser(
         description="Plot threshold-band progression across projection axes."
     )
@@ -36,6 +37,7 @@ def collect_axis_values(
     *,
     value_key: str,
 ) -> dict[str, float]:
+    """Aggregate one projection file into axis -> score values for one series."""
     by_axis: dict[str, list[float]] = {}
     for row in rows:
         axis = row.get("projection_trait")
@@ -47,6 +49,7 @@ def collect_axis_values(
 
 
 def main() -> None:
+    """Render one line per score band, optionally adding a neutral baseline."""
     args = parse_args()
 
     if len(args.inputs) != len(args.labels):

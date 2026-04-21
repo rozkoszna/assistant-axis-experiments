@@ -9,6 +9,7 @@ from plot_utils import load_jsonl
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for plotting per-run variation summaries."""
     parser = argparse.ArgumentParser(
         description="Plot per-run variation from measure_trait_axis_variation_from_pipeline outputs."
     )
@@ -32,6 +33,7 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 def main() -> None:
+    """Plot each run's mean score plus its within-run min/max range."""
     args = parse_args()
 
     rows = load_jsonl(Path(args.input))

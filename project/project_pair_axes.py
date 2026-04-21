@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Project a pair of texts onto all trait axes in a directory.
+Project a pair of texts onto one or more trait axes.
 
 This script:
-1. Loads all trait axis files in a directory
+1. Resolves which saved axis files to use
 2. Computes one vector for text A
 3. Computes one vector for text B
-4. Projects both onto every trait axis
+4. Projects both onto each requested trait axis
 5. Saves per-trait scores and differences
 
 Notes:
@@ -24,18 +24,38 @@ from typing import Any
 
 import torch
 
-from project_prompt_axis import load_model, text_vector, project
+from project_text_axis import load_model, text_vector, project
+from projection_runner import resolve_axis_files
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for projecting two texts onto one or more axes."""
     parser = argparse.ArgumentParser(
-        description="Project a pair of texts onto all trait axes in a directory."
+        description="Project a pair of texts onto one or more trait axes."
     )
     parser.add_argument(
         "--axes-dir",
         type=str,
         required=True,
-        help="Directory containing many .pt trait axis files",
+        help="Directory containing saved `.pt` trait axis files",
+    )
+    parser.add_argument(
+        "--projection-mode",
+        choices=["all", "one", "subset"],
+        default="all",
+        help="Use all axes, one named axis, or a subset from a JSON list.",
+    )
+    parser.add_argument(
+        "--axis-trait",
+        type=str,
+        default=None,
+        help="Axis trait name for --projection-mode one",
+    )
+    parser.add_argument(
+        "--axis-traits-file",
+        type=str,
+        default=None,
+        help="JSON file containing axis trait names for --projection-mode subset",
     )
     parser.add_argument(
         "--model-name",
@@ -83,6 +103,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_axis_vector(path: Path, layer: int) -> dict[str, Any]:
+    """Load one normalized axis vector and its metadata from a `.pt` file."""
     data = torch.load(path, map_location="cpu")
 
     if not isinstance(data, dict):
@@ -118,11 +139,13 @@ def load_axis_vector(path: Path, layer: int) -> dict[str, Any]:
 
 
 def iter_axis_files(axes_dir: Path):
+    """Yield all saved axis files in a directory in sorted order."""
     for path in sorted(axes_dir.glob("*.pt")):
         yield path
 
 
 def write_jsonl(rows: list[dict[str, Any]], path: Path) -> None:
+    """Write projection rows to a JSONL file."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
         for row in rows:
@@ -130,14 +153,22 @@ def write_jsonl(rows: list[dict[str, Any]], path: Path) -> None:
 
 
 def main() -> None:
+    """Project both input texts onto the requested axes and save all per-axis scores."""
     args = parse_args()
 
     axes_dir = Path(args.axes_dir)
-    axis_paths = list(iter_axis_files(axes_dir))
+    repo_root = Path(__file__).resolve().parent.parent
+    axis_paths = resolve_axis_files(
+        repo_root=repo_root,
+        axes_dir=axes_dir,
+        projection_mode=args.projection_mode,
+        axis_trait=args.axis_trait,
+        traits_file=args.axis_traits_file,
+    )
     if not axis_paths:
         raise ValueError(f"No .pt files found in {axes_dir}")
 
-    print(f"Found {len(axis_paths)} axis files in {axes_dir}")
+    print(f"Found {len(axis_paths)} axis files for projection")
     axes = [load_axis_vector(path, args.layer) for path in axis_paths]
 
     model, tokenizer = load_model(args.model_name)

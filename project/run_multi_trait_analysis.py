@@ -12,7 +12,7 @@ a combined comparison plot across those traits.
 For each user trait, the script:
 1. Builds a per-trait run name.
 2. Runs the full single-trait pipeline with shared settings for generation,
-   judging, selection, and projection.
+   judging, selection, response generation, and projection.
 3. Verifies that the expected projection JSONL file was created.
 4. Stores that projection file for the final comparison step.
 
@@ -34,6 +34,7 @@ The script also accepts shared settings for:
 - candidate generation
 - judging
 - selection
+- response generation
 - projection
 - per-trait plotting
 - final comparison plotting
@@ -49,7 +50,10 @@ Outputs
 -------
 Per trait:
 - Runs the standard single-trait pipeline and produces the usual per-trait
-  outputs, including a projection JSONL file.
+  outputs, including:
+  - selected prompt pairs
+  - generated assistant responses
+  - a projection JSONL file
 
 Across all traits:
 - Produces one comparison plot in `--comparison-output-dir`.
@@ -64,7 +68,7 @@ Plotting behavior
 Notes
 -----
 - This script is an orchestration wrapper. It does not directly implement
-  generation, judging, selection, or projection logic itself.
+  generation, judging, selection, response generation, or projection logic itself.
 - Instead, it launches the single-trait pipeline as a subprocess for each
   trait and then launches a comparison plotting script.
 - The script assumes the standard output path convention used by
@@ -91,6 +95,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for the multi-trait comparison pipeline."""
     parser = argparse.ArgumentParser(
         description="Run user-trait pipeline for many traits and generate comparison plots."
     )
@@ -164,12 +169,14 @@ def parse_args() -> argparse.Namespace:
 
     return parser.parse_args()
 def get_user_traits(args: argparse.Namespace) -> list[str]:
+    """Resolve the trait list from CLI values or a JSON file."""
     if args.user_traits is not None:
         return args.user_traits
     return load_trait_list(REPO_ROOT / args.user_traits_file)
 
 
 def build_trait_run_name(trait: str, comparison_name: str, run_suffix: str | None) -> str:
+    """Construct the per-trait run name used for downstream artifacts."""
     parts = [comparison_name, trait]
     if run_suffix:
         parts.append(run_suffix)
@@ -177,6 +184,7 @@ def build_trait_run_name(trait: str, comparison_name: str, run_suffix: str | Non
 
 
 def build_single_trait_cmd(args: argparse.Namespace, trait: str, run_name: str) -> list[str]:
+    """Build the command that launches the single-trait pipeline for one trait."""
     cmd = [
         "uv",
         "run",
@@ -271,6 +279,7 @@ def build_comparison_plot_cmd(
     args: argparse.Namespace,
     projection_files: list[Path],
 ) -> list[str]:
+    """Build the final comparison-plot command based on projection mode."""
     output_dir = REPO_ROOT / args.comparison_output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -314,6 +323,7 @@ def build_comparison_plot_cmd(
 
 
 def main() -> None:
+    """Run the single-trait pipeline for each trait and then create a comparison plot."""
     args = parse_args()
 
     traits = get_user_traits(args)

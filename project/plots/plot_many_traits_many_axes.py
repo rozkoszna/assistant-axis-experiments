@@ -10,6 +10,7 @@ from plot_utils import aggregate, infer_run_label, load_jsonl, write_csv
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for plotting a trait-by-axis comparison heatmap."""
     parser = argparse.ArgumentParser(
         description="Plot many user-trait runs across many projection axes, always including Neutral."
     )
@@ -52,6 +53,7 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 def main() -> None:
+    """Aggregate many-axis projections across runs and render a heatmap."""
     args = parse_args()
 
     summaries: list[dict[str, Any]] = []

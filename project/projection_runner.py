@@ -99,9 +99,11 @@ def run_projection_for_selected(
     run_cmd,
 ) -> None:
     """
-    Project each selected neutral/trait prompt pair onto the requested axes.
+    Project each selected neutral/trait pair onto the requested axes.
 
-    Runs the projection CLI once per selected row, then filters to the requested axes.
+    If response fields exist they are used; otherwise the original prompt fields
+    are projected. Runs the projection CLI once per selected row, then filters
+    to the requested axes.
     """
     selected_rows = load_jsonl(selected_file)
 
@@ -126,6 +128,10 @@ def run_projection_for_selected(
 
     for idx, row in enumerate(selected_rows):
         pair_out = temp_dir / f"pair_{idx:05d}.jsonl"
+        text_a = row.get("neutral_response") or row["neutral_prompt"]
+        text_b = row.get("trait_response") or row["trait_prompt"]
+        label_a = "neutral_response" if row.get("neutral_response") else "neutral_prompt"
+        label_b = "trait_response" if row.get("trait_response") else "trait_prompt"
 
         cmd = [
             "uv",
@@ -139,13 +145,13 @@ def run_projection_for_selected(
             "--layer",
             str(layer),
             "--text-a",
-            row["neutral_prompt"],
+            text_a,
             "--text-b",
-            row["trait_prompt"],
+            text_b,
             "--label-a",
-            "neutral_prompt",
+            label_a,
             "--label-b",
-            "trait_prompt",
+            label_b,
             "--output",
             str(pair_out),
         ]
@@ -166,6 +172,8 @@ def run_projection_for_selected(
                     "projection_score_neutral": pair_row["score_a"],
                     "projection_score_trait": pair_row["score_b"],
                     "projection_delta_trait_minus_neutral": pair_row["delta_b_minus_a"],
+                    "projection_text_source_neutral": label_a,
+                    "projection_text_source_trait": label_b,
                 }
             )
             all_rows.append(merged)

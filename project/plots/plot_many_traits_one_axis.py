@@ -10,6 +10,7 @@ from plot_utils import aggregate, infer_run_label, load_jsonl, write_csv
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for plotting multiple traits on one fixed axis."""
     parser = argparse.ArgumentParser(
         description="Plot many user-trait runs on one fixed projection axis, always including Neutral."
     )
@@ -52,6 +53,7 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 def main() -> None:
+    """Aggregate one-axis projections across runs and render a simple bar chart."""
     args = parse_args()
 
     summaries: list[dict[str, Any]] = []

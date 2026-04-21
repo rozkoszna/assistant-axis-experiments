@@ -12,7 +12,7 @@ USAGE EXAMPLES
 
 1) Project a single text:
 
-uv run python project/project_prompt_axis.py \
+uv run python project/project_text_axis.py \
   --axis precomputed_axis/answer_mean/filter_matched_pairs_ge_50_count_ge_10_total/supportive.pt \
   --model-name meta-llama/Llama-3.1-8B-Instruct \
   --layer 20 \
@@ -28,7 +28,7 @@ Input format (JSONL):
 
 Run:
 
-uv run python project/project_prompt_axis.py \
+uv run python project/project_text_axis.py \
   --axis precomputed_axis/answer_mean/filter_matched_pairs_ge_50_count_ge_10_total/supportive.pt \
   --model-name meta-llama/Llama-3.1-8B-Instruct \
   --layer 20 \
@@ -109,6 +109,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
 def parse_args():
+    """Parse CLI arguments for projecting one or more texts onto a single axis."""
     parser = argparse.ArgumentParser(description="Project text onto a saved axis.")
     parser.add_argument("--axis", type=str, required=True, help="Path to saved axis .pt file")
     parser.add_argument("--layer", type=int, required=True, help="Layer index to use from the saved vector stack")
@@ -122,6 +123,7 @@ def parse_args():
 
 
 def load_axis(axis_path: Path, layer: int):
+    """Load one layer-specific axis vector plus metadata from a saved `.pt` file."""
     data = torch.load(axis_path, map_location="cpu")
 
     if not isinstance(data, dict):
@@ -146,6 +148,7 @@ def load_axis(axis_path: Path, layer: int):
 
 
 def load_model(model_name: str):
+    """Load the projection model and tokenizer used to embed input texts."""
     print(f"Loading model: {model_name}")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     if tokenizer.pad_token is None:
@@ -161,6 +164,7 @@ def load_model(model_name: str):
 
 
 def text_vector(model, tokenizer, text: str, layer: int) -> torch.Tensor:
+    """Convert one text into a mean-pooled hidden-state vector at the requested layer."""
     device = next(model.parameters()).device
     inputs = tokenizer(
         text,
@@ -179,17 +183,20 @@ def text_vector(model, tokenizer, text: str, layer: int) -> torch.Tensor:
 
 
 def project(vec: torch.Tensor, axis: torch.Tensor) -> float:
+    """Return the scalar projection of a text vector onto a normalized axis."""
     axis = axis / axis.norm()
     return torch.dot(vec, axis).item()
 
 
 def read_jsonl(path: Path):
+    """Yield rows from a JSONL file one line at a time."""
     with open(path) as f:
         for line in f:
             yield json.loads(line)
 
 
 def write_jsonl(rows, path: Path):
+    """Write rows to a JSONL file, creating parent directories if needed."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
         for row in rows:
@@ -197,6 +204,7 @@ def write_jsonl(rows, path: Path):
 
 
 def main():
+    """Run single-text or batch-text projection onto one saved axis."""
     args = parse_args()
 
     axis_path = Path(args.axis)

@@ -1,4 +1,74 @@
 #!/usr/bin/env python3
+"""
+Run threshold-band analysis for one judged user-trait dataset.
+
+Overview
+--------
+This script starts from a single judged JSONL file and builds several
+score-based bands such as `89-92`, `92-94`, and `94-100`. For each band, it:
+
+1. filters rows into that final-score interval
+2. optionally deduplicates near-identical prompt pairs
+3. optionally keeps only the rows closest to the band midpoint
+4. projects the selected rows onto one or more saved axes
+5. optionally creates a comparison plot across the bands
+
+This is useful when you want to compare "weaker" vs "stronger" prompt-pair
+bands without rerunning generation and judging every time.
+
+Typical workflow
+----------------
+For one judged file, the script:
+- applies base prompt-quality filters
+- slices the surviving rows into score bands
+- writes one `selected` file per band
+- writes one `projections` file per band
+- optionally plots all bands together
+
+The band-selection detail that matters most is:
+- rows are sorted by distance to the midpoint of each band
+- for example, rows in `89-92` are sorted by closeness to `90.5`
+
+This makes the retained examples feel more representative of the band than
+simple `>= threshold` filtering.
+
+Inputs
+------
+Required:
+- `--judged-file`: judged prompt-pair JSONL produced by `2_judge.py`
+- `--analysis-name`: prefix used in the output filenames
+- `--bands`: one or more score bands like `89-92 92-94 94-100`
+- `--axes-dir`: directory containing saved `.pt` axis files
+
+Optional:
+- `--keep-n-per-band`: limit each band to the N rows closest to the midpoint
+- `--projection-mode`: `all`, `one`, or `subset`
+- `--axis-trait`: required for `projection-mode=one`
+- `--axis-traits-file`: required for `projection-mode=subset`
+- `--with-plot`: render a summary plot after projection
+- `--include-neutral-in-plot`: add a Neutral series aggregated from the same
+  pair-projection files
+
+Outputs
+-------
+For a judged file under:
+`outputs/user_prompts/<trait>/judged/<run_name>.jsonl`
+
+this script writes:
+- `outputs/user_prompts/<trait>/selected/<analysis_name>__band_<band>.jsonl`
+- `outputs/user_prompts/<trait>/projections/<analysis_name>__band_<band>.jsonl`
+
+If plotting is enabled, it also writes:
+- `outputs/analysis/<analysis_name>__bands.png`
+
+Notes
+-----
+- The script does not regenerate prompts or responses.
+- It assumes the judged file already exists.
+- Projection uses the same projection helper as the main user-trait pipeline,
+  so if response fields are present they are preferred automatically.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -15,6 +85,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def parse_band(spec: str) -> tuple[float, float]:
+    """Parse one score band string like `89-92` into numeric bounds."""
     parts = spec.split("-")
     if len(parts) != 2:
         raise ValueError(f"Band must look like low-high, got: {spec}")
@@ -25,10 +96,12 @@ def parse_band(spec: str) -> tuple[float, float]:
 
 
 def band_label(low: float, high: float) -> str:
+    """Format a numeric band back into a compact label."""
     return f"{low:g}-{high:g}"
 
 
 def normalize_text(text: str) -> str:
+    """Normalize text for lightweight pair-level deduplication."""
     text = text.lower().strip()
     text = re.sub(r"\s+", " ", text)
     text = re.sub(r"[\"'`]+", "", text)
@@ -36,6 +109,7 @@ def normalize_text(text: str) -> str:
 
 
 def pair_signature(row: dict[str, Any]) -> tuple[str, str]:
+    """Build a dedupe signature from the neutral/trait prompt text pair."""
     return (
         normalize_text(str(row["neutral_prompt"])),
         normalize_text(str(row["trait_prompt"])),
@@ -49,6 +123,7 @@ def passes_base_filters(
     min_trait_score: int,
     min_pair_score: int,
 ) -> bool:
+    """Apply coarse prompt-quality filters before score-band slicing."""
     return (
         int(row["neutral_score"]) >= min_neutral_score
         and int(row["trait_score"]) >= min_trait_score
@@ -64,6 +139,7 @@ def select_band_rows(
     keep_n: int | None,
     dedupe: bool,
 ) -> list[dict[str, Any]]:
+    """Keep rows inside a score band, ordered by distance to the band midpoint."""
     midpoint = (low + high) / 2.0
     filtered = [
         row for row in rows
@@ -99,6 +175,7 @@ def select_band_rows(
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for threshold-band selection, projection, and plotting."""
     parser = argparse.ArgumentParser(
         description="Automate selection, projection, and plotting for judged-score threshold bands."
     )
@@ -137,6 +214,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Run midpoint-based band selection, projection, and optional plotting."""
     args = parse_args()
 
     judged_file = REPO_ROOT / args.judged_file

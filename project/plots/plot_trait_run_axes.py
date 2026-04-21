@@ -10,6 +10,7 @@ from plot_utils import aggregate, infer_run_label, load_jsonl
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for plotting one run across its strongest axes."""
     parser = argparse.ArgumentParser(
         description="Plot aggregated projection results for one user-trait run across axes."
     )
@@ -36,6 +37,7 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 def get_metric_value(row: dict[str, Any], metric: str) -> float:
+    """Read the requested scalar metric from one projection row."""
     if metric == "delta":
         return float(row["projection_delta_trait_minus_neutral"])
     if metric == "neutral":
@@ -44,12 +46,14 @@ def get_metric_value(row: dict[str, Any], metric: str) -> float:
         return float(row["projection_score_trait"])
     raise ValueError(f"Unknown metric: {metric}")
 def infer_trait_run_name(path: Path, rows: list[dict[str, Any]]) -> str:
+    """Infer a display name for the plotted run from row metadata or path."""
     if rows and "trait" in rows[0]:
         return str(rows[0]["trait"])
     return infer_run_label(path)
 
 
 def main() -> None:
+    """Aggregate one run's axis scores and render a horizontal bar chart."""
     args = parse_args()
 
     input_path = Path(args.input)

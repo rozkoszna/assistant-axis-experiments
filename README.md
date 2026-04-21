@@ -59,6 +59,17 @@ Interactive notebooks for analysis and experimentation. See [`notebooks/README.m
 - **Steering and activation capping** on arbitrary prompts
 - **Transcript projection** to visualize persona trajectories
 
+## User-Trait Experiments
+
+This repository also contains a separate "user trait -> assistant behavior"
+workflow under `project/` and `user_prompt_pipeline/`.
+
+Use [`docs/USER_TRAIT_PIPELINE.md`](docs/USER_TRAIT_PIPELINE.md) for:
+- what each user-trait pipeline file does
+- where outputs are written
+- the difference between prompt files, response files, and projection files
+- which scripts to use for single-trait checks, multi-trait alignment, and threshold-band analysis
+
 ## Computing the Axis
 
 To compute the axis for a new model, run the 5-step pipeline:

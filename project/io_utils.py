@@ -56,11 +56,13 @@ def append_jsonl(rows: Iterable[dict[str, Any]], path: Path) -> None:
 # ------------------------
 
 def load_json(path: Path) -> Any:
+    """Load one JSON file into memory."""
     with open(path, "r") as f:
         return json.load(f)
 
 
 def write_json(data: Any, path: Path) -> None:
+    """Write one Python object to JSON with indentation."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
         json.dump(data, f, indent=2)
@@ -103,10 +105,12 @@ def make_run_name(user_value: str | None = None) -> str:
 # ------------------------
 
 def print_header(title: str) -> None:
+    """Print a section header for long-running CLI workflows."""
     print("\n" + "=" * 60)
     print(title)
     print("=" * 60)
 
 
 def print_kv(key: str, value: Any) -> None:
+    """Print a simple key-value pair for CLI status output."""
     print(f"{key}: {value}")

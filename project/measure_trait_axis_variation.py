@@ -19,6 +19,7 @@ DEFAULT_MODEL = DEFAULT_GEN_MODEL
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for repeated-run trait variation measurement."""
     parser = argparse.ArgumentParser(
         description="Run the user-trait pipeline multiple times and measure projection variation."
     )
@@ -85,6 +86,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_axis(axis_path: Path, layer: int) -> dict[str, Any]:
+    """Load one layer-specific axis vector and metadata from disk."""
     data = torch.load(axis_path, map_location="cpu")
 
     if not isinstance(data, dict):
@@ -110,6 +112,7 @@ def load_axis(axis_path: Path, layer: int) -> dict[str, Any]:
 
 
 def load_model(model_name: str):
+    """Load the projection model used to embed assistant responses."""
     print(f"Loading model: {model_name}", file=sys.stderr)
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -132,6 +135,7 @@ def text_vector(
     layer: int,
     hidden_state_indexing: str,
 ) -> torch.Tensor:
+    """Embed one text as a mean-pooled hidden-state vector for projection."""
     device = next(model.parameters()).device
     inputs = tokenizer(
         text,
@@ -162,11 +166,13 @@ def text_vector(
 
 
 def project(vec: torch.Tensor, axis: torch.Tensor) -> float:
+    """Project a vector onto a normalized axis and return the scalar score."""
     axis = axis / axis.norm()
     return torch.dot(vec, axis).item()
 
 
 def summarize(scores: list[float]) -> dict[str, Any]:
+    """Compute simple descriptive statistics for a list of projection scores."""
     if not scores:
         return {
             "count": 0,
@@ -186,6 +192,7 @@ def summarize(scores: list[float]) -> dict[str, Any]:
 
 
 def extract_text(row: dict[str, Any], text_keys: list[str]) -> tuple[str, str]:
+    """Pick the first available text field from a row and report which key was used."""
     for key in text_keys:
         value = row.get(key)
         if isinstance(value, str) and value.strip():
@@ -199,6 +206,7 @@ def extract_text(row: dict[str, Any], text_keys: list[str]) -> tuple[str, str]:
 
 
 def build_pipeline_cmd(args: argparse.Namespace, run_name: str, seed: int) -> list[str]:
+    """Build the single-trait pipeline command for one repeated variation run."""
     cmd = [
         "uv",
         "run",
@@ -229,10 +237,12 @@ def build_pipeline_cmd(args: argparse.Namespace, run_name: str, seed: int) -> li
 
 
 def build_selected_path(trait: str, run_name: str) -> Path:
+    """Return the selected-file path expected from one repeated variation run."""
     return REPO_ROOT / "outputs" / "user_prompts" / trait / "selected" / f"{run_name}.jsonl"
 
 
 def main() -> None:
+    """Run multiple pipelines, then score and summarize their projection variation."""
     args = parse_args()
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)

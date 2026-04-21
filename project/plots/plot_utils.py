@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 def aggregate(values: list[float], mode: str) -> float:
+    """Aggregate numeric values with the requested summary statistic."""
     if not values:
         raise ValueError("Cannot aggregate empty list")
     if mode == "mean":
@@ -21,6 +22,7 @@ def aggregate(values: list[float], mode: str) -> float:
 
 
 def infer_run_label(path: Path) -> str:
+    """Infer a human-readable series label from a standard output path."""
     parts = path.parts
     if "user_prompts" in parts:
         idx = parts.index("user_prompts")
@@ -30,6 +32,7 @@ def infer_run_label(path: Path) -> str:
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
+    """Load a JSONL file fully into memory for plotting."""
     rows: list[dict[str, Any]] = []
     with open(path, "r") as f:
         for line in f:
@@ -40,6 +43,7 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
 
 
 def write_csv(rows: list[dict[str, Any]], path: Path, *, fieldnames: list[str]) -> None:
+    """Write plot summary rows to CSV with explicit field order."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)

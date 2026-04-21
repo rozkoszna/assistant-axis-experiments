@@ -4,27 +4,39 @@ Run the full user-trait prompt pipeline for a single trait.
 
 Overview
 --------
-This script orchestrates the end-to-end prompt-generation pipeline for one
-user trait. It shells out to the stage-specific pipeline scripts, manages
-output file locations, and optionally runs projection and plotting steps.
+This script orchestrates the end-to-end "user trait -> assistant behavior"
+pipeline for one trait. It shells out to stage-specific scripts, manages
+standard output paths, and optionally runs response projection and plotting.
 
 The pipeline stages are:
-1. Generate candidate prompts for the requested trait.
-2. Judge and score those candidates.
-3. Select the best candidates according to the configured selection rules.
-4. Optionally project the selected prompt pairs onto one or more saved axes.
-5. Optionally plot the projection results.
+1. Generate candidate neutral/trait USER prompt pairs.
+2. Judge and score those prompt pairs.
+3. Select the prompt pairs to keep.
+4. If projection is enabled, generate assistant responses to the selected pairs.
+5. Project the assistant responses onto one or more saved axes.
+6. Optionally plot the projection results.
 
 Typical workflow
 ----------------
 For a given trait (for example `confused`), the script:
 - builds a run name,
 - determines the standard output paths for all artifacts,
-- runs generation,
-- runs judging,
-- runs selection,
-- optionally resolves projection axes and runs projection,
+- runs prompt generation,
+- runs prompt judging,
+- runs prompt selection,
+- if projection is enabled, generates assistant responses for the selected prompts,
+- resolves projection axes and projects those assistant responses,
 - optionally creates a plot from the projection output.
+
+The important measurement detail is:
+- prompt files are used to define the experimental stimulus
+- response files are used for the final projection when available
+
+So the projected object in the current pipeline is:
+- `neutral_response` vs `trait_response`
+
+and only if response fields are missing does the projection layer fall back to:
+- `neutral_prompt` vs `trait_prompt`
 
 Inputs
 ------
@@ -41,13 +53,17 @@ The script also accepts shared settings for:
 - judging
 - selection
 - projection
+- response generation
 - plotting
 
 Projection
 ----------
 Projection is optional and enabled with `--with-projection`.
 
-When enabled, you must also provide:
+When enabled, the pipeline first generates assistant responses for the selected
+prompt pairs, and then projects those responses.
+
+You must also provide:
 - `--axes-dir`: directory containing saved `.pt` axis files
 
 Projection modes:
@@ -73,13 +89,14 @@ Including:
 - `candidates/<run_name>.jsonl`
 - `judged/<run_name>.jsonl`
 - `selected/<run_name>.jsonl`
+- `responses/<run_name>.jsonl` (assistant outputs for selected prompt pairs; only if projection is enabled)
 - `projections/<run_name>.jsonl` (if enabled)
 - `plots/<run_name>.png` (if enabled)
 
 Notes
 -----
 - This script is an orchestrator. It does not implement the core generation,
-  judging, or selection logic itself.
+  judging, response generation, or projection math itself.
 - Instead, it invokes the stage-specific scripts using subprocess calls.
 - It assumes the downstream scripts follow the expected file and directory
   conventions.
@@ -109,7 +126,9 @@ from projection_runner import (
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for the single-trait user-prompt pipeline."""
     parser = argparse.ArgumentParser(description="Run the full user-trait prompt pipeline")
 
     parser.add_argument("--trait", type=str, required=True, help="Trait name, e.g. confused")
@@ -125,6 +144,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def validate_args(args: argparse.Namespace) -> None:
+    """Validate combinations of projection and plotting arguments."""
     if args.with_plot and not args.with_projection:
         raise ValueError("--with-plot requires --with-projection")
 
@@ -133,6 +153,7 @@ def validate_args(args: argparse.Namespace) -> None:
 
 
 def print_run_summary(args: argparse.Namespace, run_name: str, paths: dict[str, Path]) -> None:
+    """Print the resolved output files and optional projection/plot settings."""
     print(f"Trait: {args.trait}")
     print(f"Run name: {run_name}")
     print(f"Candidates: {paths['candidates_file']}")
@@ -140,6 +161,7 @@ def print_run_summary(args: argparse.Namespace, run_name: str, paths: dict[str, 
     print(f"Selected: {paths['selected_file']}")
 
     if args.with_projection:
+        print(f"Responses: {paths['responses_file']}")
         print(f"Projections: {paths['projections_file']}")
         print(f"Projection mode: {args.projection_mode}")
 
@@ -148,6 +170,7 @@ def print_run_summary(args: argparse.Namespace, run_name: str, paths: dict[str, 
 
 
 def build_generate_cmd(args: argparse.Namespace, candidates_file: Path) -> list[str]:
+    """Build the stage-1 command that generates candidate prompt pairs."""
     cmd = [
         "uv",
         "run",
@@ -187,6 +210,7 @@ def build_generate_cmd(args: argparse.Namespace, candidates_file: Path) -> list[
 
 
 def build_judge_cmd(args: argparse.Namespace, candidates_file: Path, judged_file: Path) -> list[str]:
+    """Build the stage-2 command that scores candidate prompt pairs."""
     return [
         "uv",
         "run",
@@ -213,6 +237,7 @@ def build_judge_cmd(args: argparse.Namespace, candidates_file: Path, judged_file
 
 
 def build_select_cmd(args: argparse.Namespace, judged_file: Path, selected_file: Path) -> list[str]:
+    """Build the stage-3 command that filters judged prompt pairs."""
     cmd = [
         "uv",
         "run",
@@ -244,6 +269,7 @@ def build_select_cmd(args: argparse.Namespace, judged_file: Path, selected_file:
 
 
 def build_plot_cmd(args: argparse.Namespace, projections_file: Path, plot_file: Path) -> list[str]:
+    """Build the optional plotting command for one run's projection output."""
     return [
         "uv",
         "run",
@@ -258,24 +284,65 @@ def build_plot_cmd(args: argparse.Namespace, projections_file: Path, plot_file: 
     ]
 
 
+def build_response_cmd(args: argparse.Namespace, selected_file: Path, responses_file: Path) -> list[str]:
+    """Build the stage-4 command that generates assistant responses for selected prompts."""
+    cmd = [
+        "uv",
+        "run",
+        "user_prompt_pipeline/4_generate_responses.py",
+        "--selected-file",
+        str(selected_file),
+        "--output-file",
+        str(responses_file),
+        "--model",
+        args.projection_model,
+        "--max-model-len",
+        str(args.max_model_len),
+        "--gpu-memory-utilization",
+        str(args.gpu_memory_utilization),
+        "--max-tokens",
+        str(args.max_tokens),
+        "--top-p",
+        str(args.top_p),
+    ]
+
+    if args.tensor_parallel_size is not None:
+        cmd += ["--tensor-parallel-size", str(args.tensor_parallel_size)]
+
+    return cmd
+
+
 def main() -> None:
+    """Run the full single-trait pipeline from prompt generation through plotting."""
     args = parse_args()
     validate_args(args)
 
+    # Resolve one stable run name and the canonical output paths used by all stages.
     run_name = make_run_name(args.run_name)
     paths = build_trait_output_paths(REPO_ROOT, args.trait, run_name)
 
     print_run_summary(args, run_name, paths)
 
+    # Build the three prompt-side stages first: generate -> judge -> select.
     gen_cmd = build_generate_cmd(args, paths["candidates_file"])
     judge_cmd = build_judge_cmd(args, paths["candidates_file"], paths["judged_file"])
     select_cmd = build_select_cmd(args, paths["judged_file"], paths["selected_file"])
 
+    # Execute the prompt-side pipeline in order so each stage can consume the
+    # artifact produced by the previous one.
     run_cmd(gen_cmd, cwd=REPO_ROOT)
     run_cmd(judge_cmd, cwd=REPO_ROOT)
     run_cmd(select_cmd, cwd=REPO_ROOT)
 
     if args.with_projection:
+        # Before projection, generate assistant responses to the selected prompt
+        # pairs. This keeps the final measurement focused on model behavior rather
+        # than just prompt wording.
+        response_cmd = build_response_cmd(args, paths["selected_file"], paths["responses_file"])
+        run_cmd(response_cmd, cwd=REPO_ROOT)
+
+        # Resolve which saved axes to use, then project the response pairs onto
+        # those axes. The projection helper prefers response fields when present.
         axes_dir = REPO_ROOT / args.axes_dir
         axis_files = resolve_axis_files(
             repo_root=REPO_ROOT,
@@ -290,7 +357,7 @@ def main() -> None:
             print(f"  - {axis_file}")
 
         run_projection_for_selected(
-            selected_file=paths["selected_file"],
+            selected_file=paths["responses_file"],
             output_file=paths["projections_file"],
             projection_script=REPO_ROOT / args.projection_script,
             axis_files=axis_files,
@@ -300,6 +367,8 @@ def main() -> None:
         )
 
     if args.with_plot:
+        # Plot only after projection exists, since the plotter reads the saved
+        # projection JSONL rather than regenerating anything itself.
         plot_cmd = build_plot_cmd(args, paths["projections_file"], paths["plot_file"])
         run_cmd(plot_cmd, cwd=REPO_ROOT)
 

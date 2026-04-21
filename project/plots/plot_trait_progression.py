@@ -10,6 +10,7 @@ from plot_utils import aggregate, load_jsonl, write_csv
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for plotting several series across many axes."""
     parser = argparse.ArgumentParser(
         description="Plot trait progression across axes using absolute projection values."
     )
@@ -81,6 +82,7 @@ def collect_axis_values(
     value_key: str,
     aggregate_mode: str,
 ) -> dict[str, float]:
+    """Aggregate one projection file into axis -> score values for plotting."""
     by_axis: dict[str, list[float]] = {}
     for row in rows:
         axis = row.get("projection_trait")
@@ -93,6 +95,7 @@ def collect_axis_values(
         for axis, values in by_axis.items()
     }
 def main() -> None:
+    """Render a progression-style multi-series plot across shared axes."""
     args = parse_args()
 
     if len(args.trait_inputs) != len(args.trait_labels):
