@@ -5,8 +5,37 @@ Run the full user-trait prompt pipeline for a single trait.
 Overview
 --------
 This script orchestrates the end-to-end "user trait -> assistant behavior"
-pipeline for one trait. It shells out to stage-specific scripts, manages
-standard output paths, and optionally runs response projection and plotting.
+pipeline for one user trait at a time. It shells out to stage-specific
+scripts, manages standard output paths, and optionally runs response
+projection and plotting.
+
+There are two distinct trait dimensions in this pipeline:
+- user trait: exactly one per run, passed as `--trait`
+- assistant axis traits: one, many, or all saved axes used during projection
+
+Example:
+- user trait = `confused`
+- assistant axes = `decisive`, `disorganized`, `chaotic`, `contrarian`, ...
+
+So one pipeline run is not "many user traits in one file".
+Instead, it is:
+- one user trait
+- many selected neutral/trait examples for that user trait
+- many assistant-axis projection rows derived from those examples
+
+Neutral side
+------------
+Every selected example has two sides:
+- a neutral side
+- a trait-conditioned side
+
+If projection is enabled, the pipeline generates both:
+- `neutral_response`
+- `trait_response`
+
+The neutral side is not a separate experiment. It is the matched baseline for
+the same selected examples in the same run. That is why the pipeline can save
+`projections/<run_name>__neutral.jsonl` without any extra projection pass.
 
 The pipeline stages are:
 1. Generate candidate neutral/trait USER prompt pairs.
@@ -30,13 +59,24 @@ For a given trait (for example `confused`), the script:
 
 The important measurement detail is:
 - prompt files are used to define the experimental stimulus
-- response files are used for the final projection when available
+- response files are always used for the final projection
 
 So the projected object in the current pipeline is:
 - `neutral_response` vs `trait_response`
 
-and only if response fields are missing does the projection layer fall back to:
-- `neutral_prompt` vs `trait_prompt`
+If response fields are missing, projection now raises an error instead of
+silently projecting prompts.
+
+Each saved projection file therefore contains:
+- one user-trait run
+- many assistant-axis rows identified by `projection_trait`
+
+The companion file:
+- `projections/<run_name>__neutral.jsonl`
+
+is not "neutral for one assistant trait".
+It is the neutral side of that same run, across the same projected assistant
+axes, saved as a reusable baseline artifact for later plotting.
 
 Inputs
 ------
@@ -91,6 +131,7 @@ Including:
 - `selected/<run_name>.jsonl`
 - `responses/<run_name>.jsonl` (assistant outputs for selected prompt pairs; only if projection is enabled)
 - `projections/<run_name>.jsonl` (if enabled)
+- `projections/<run_name>__neutral.jsonl` (paired neutral baseline, if enabled)
 - `plots/<run_name>.png` (if enabled)
 
 Notes
@@ -163,6 +204,7 @@ def print_run_summary(args: argparse.Namespace, run_name: str, paths: dict[str, 
     if args.with_projection:
         print(f"Responses: {paths['responses_file']}")
         print(f"Projections: {paths['projections_file']}")
+        print(f"Neutral baseline: {paths['neutral_projections_file']}")
         print(f"Projection mode: {args.projection_mode}")
 
     if args.with_plot:
@@ -359,6 +401,7 @@ def main() -> None:
         run_projection_for_selected(
             selected_file=paths["responses_file"],
             output_file=paths["projections_file"],
+            neutral_output_file=paths["neutral_projections_file"],
             projection_script=REPO_ROOT / args.projection_script,
             axis_files=axis_files,
             model_name=args.projection_model,

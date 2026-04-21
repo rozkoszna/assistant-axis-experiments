@@ -252,6 +252,7 @@ def main() -> None:
         selected_name = f"{args.analysis_name}__band_{label}.jsonl"
         selected_path = output_root / "selected" / selected_name
         projection_path = output_root / "projections" / selected_name
+        neutral_projection_path = output_root / "projections" / f"{args.analysis_name}__band_{label}__neutral.jsonl"
         selected_rows = select_band_rows(
             judged_rows,
             low=low,
@@ -268,6 +269,7 @@ def main() -> None:
         run_projection_for_selected(
             selected_file=selected_path,
             output_file=projection_path,
+            neutral_output_file=neutral_projection_path,
             projection_script=REPO_ROOT / args.projection_script,
             axis_files=axis_files,
             model_name=args.projection_model,

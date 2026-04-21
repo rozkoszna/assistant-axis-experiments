@@ -9,6 +9,32 @@ single-trait pipeline (`project/run_user_trait_pipeline.py`) for a list of
 user traits, collecting the resulting projection files, and then generating
 a combined comparison plot across those traits.
 
+Trait structure
+---------------
+This script adds a second layer on top of the single-trait pipeline:
+- each inner run still handles exactly one user trait
+- each inner run may still project onto many assistant axes
+- this outer script repeats that process for many user traits
+
+So the full experiment can contain:
+- many user traits across runs
+- many assistant axes within each run
+
+This is why a per-trait projection file can already contain many axis traits:
+- the user trait is fixed for that file
+- the assistant axis varies row by row via `projection_trait`
+
+Neutral side
+------------
+Each per-trait run also has a matched neutral side for the same selected
+examples. So when the inner pipeline saves:
+- `projections/<run_name>.jsonl`
+- `projections/<run_name>__neutral.jsonl`
+
+those are still files for one user-trait run, not files that mix many user
+traits together. The neutral companion file is simply the baseline view of
+that same run across the same assistant axes.
+
 For each user trait, the script:
 1. Builds a per-trait run name.
 2. Runs the full single-trait pipeline with shared settings for generation,

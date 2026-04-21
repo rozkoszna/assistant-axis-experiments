@@ -147,8 +147,8 @@ Purpose:
 - Projects text pairs onto one or more precomputed axes.
 
 Current behavior:
-- If `neutral_response` and `trait_response` exist, projection uses those.
-- Otherwise it falls back to `neutral_prompt` and `trait_prompt`.
+- Projection uses `neutral_response` and `trait_response`.
+- If either response field is missing, projection raises an error.
 
 Output:
 - `outputs/user_prompts/<trait>/projections/<run_name>.jsonl`
@@ -161,10 +161,9 @@ Important projection fields:
 - `projection_text_source_neutral`
 - `projection_text_source_trait`
 
-Those last two fields tell you whether the file was projected from:
-- `neutral_response` / `trait_response`
-or
-- `neutral_prompt` / `trait_prompt`
+Those last two fields should be:
+- `neutral_response`
+- `trait_response`
 
 ### 6. Orchestration
 

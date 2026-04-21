@@ -5,14 +5,36 @@ This module does NOT implement projection math itself.
 
 Instead, it:
 1. Chooses which axis (.pt) files to use.
-2. Iterates over selected prompt pairs (neutral vs trait prompts).
+2. Iterates over selected neutral-vs-trait rows from one user-trait run.
 3. Calls the projection script (e.g. project_pair_axes.py) once per pair.
 4. Filters and merges results into a single JSONL output.
 
 Key idea:
 ---------
-Input:  selected rows (each containing a neutral_prompt and trait_prompt)
-Output: flattened projection rows (one row per [selected_row × axis])
+Input:
+- selected rows from one user-trait run
+- each row has a neutral side and a trait-conditioned side
+- each row is projected onto one or more assistant axes
+
+Output:
+- flattened projection rows
+- one row per [selected_row x assistant_axis]
+
+Important distinction:
+- this module does not mix many user traits together
+- it handles one user-trait run at a time
+- the "many" dimension here is usually the assistant-axis list
+
+Neutral side
+------------
+For each selected row, this module carries both sides forward:
+- neutral side
+- trait-conditioned side
+
+That means the merged projection output already contains the information
+needed for both:
+- the main comparison file
+- a reusable neutral baseline file for the same run
 
 This module is essentially a batch runner + result merger around the
 projection CLI script.
@@ -92,6 +114,7 @@ def run_projection_for_selected(
     *,
     selected_file: Path,
     output_file: Path,
+    neutral_output_file: Path | None,
     projection_script: Path,
     axis_files: list[Path],
     model_name: str,
@@ -101,14 +124,20 @@ def run_projection_for_selected(
     """
     Project each selected neutral/trait pair onto the requested axes.
 
-    If response fields exist they are used; otherwise the original prompt fields
-    are projected. Runs the projection CLI once per selected row, then filters
-    to the requested axes.
+    Projection is response-only. Each selected row must already contain
+    `neutral_response` and `trait_response`. Runs the projection CLI once per
+    selected row, then filters to the requested axes.
+
+    When `neutral_output_file` is provided, the same merged rows are also saved
+    as a dedicated neutral-baseline artifact. This keeps a reusable baseline
+    file next to the main pair-projection output without re-running projection.
     """
     selected_rows = load_jsonl(selected_file)
 
     if not selected_rows:
         write_jsonl([], output_file)
+        if neutral_output_file is not None:
+            write_jsonl([], neutral_output_file)
         print(f"No selected rows found in {selected_file}; wrote empty projection file.")
         return
 
@@ -127,11 +156,18 @@ def run_projection_for_selected(
     temp_dir.mkdir(parents=True, exist_ok=True)
 
     for idx, row in enumerate(selected_rows):
+        if not row.get("neutral_response") or not row.get("trait_response"):
+            raise ValueError(
+                "Projection requires response fields on every selected row. "
+                f"Missing response text in row index {idx} from {selected_file}. "
+                "Run response generation first instead of projecting prompts."
+            )
+
         pair_out = temp_dir / f"pair_{idx:05d}.jsonl"
-        text_a = row.get("neutral_response") or row["neutral_prompt"]
-        text_b = row.get("trait_response") or row["trait_prompt"]
-        label_a = "neutral_response" if row.get("neutral_response") else "neutral_prompt"
-        label_b = "trait_response" if row.get("trait_response") else "trait_prompt"
+        text_a = row["neutral_response"]
+        text_b = row["trait_response"]
+        label_a = "neutral_response"
+        label_b = "trait_response"
 
         cmd = [
             "uv",
@@ -180,3 +216,6 @@ def run_projection_for_selected(
 
     write_jsonl(all_rows, output_file)
     print(f"Saved {len(all_rows)} projection rows to {output_file}")
+    if neutral_output_file is not None:
+        write_jsonl(all_rows, neutral_output_file)
+        print(f"Saved {len(all_rows)} neutral baseline rows to {neutral_output_file}")
