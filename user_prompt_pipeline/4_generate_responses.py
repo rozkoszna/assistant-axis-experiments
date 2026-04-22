@@ -223,7 +223,13 @@ def main() -> None:
     activation_rows: list[dict[str, Any]] = []
 
     try:
-        for row in rows:
+        total_rows = len(rows)
+        for idx, row in enumerate(rows, start=1):
+            print(
+                f"[{idx}/{total_rows}] intent={row.get('intent_index')} "
+                f"candidate={row.get('candidate_index')} generating neutral response...",
+                flush=True,
+            )
             neutral_conversation = [{"role": "user", "content": row["neutral_prompt"]}]
             trait_conversation = [{"role": "user", "content": row["trait_prompt"]}]
 
@@ -235,6 +241,7 @@ def main() -> None:
                 temperature=args.temperature,
                 top_p=args.top_p,
             )
+            print(f"[{idx}/{total_rows}] neutral response done; generating trait response...", flush=True)
             trait_response, trait_answer_mean = generate_response_with_answer_mean(
                 pm,
                 trait_conversation,
@@ -243,6 +250,7 @@ def main() -> None:
                 temperature=args.temperature,
                 top_p=args.top_p,
             )
+            print(f"[{idx}/{total_rows}] trait response done; saving checkpoint...", flush=True)
 
             enriched = dict(row)
             enriched["neutral_response"] = neutral_response
@@ -255,6 +263,17 @@ def main() -> None:
                     "trait_answer_mean": trait_answer_mean,
                 }
             )
+
+            save_rows(output_file, enriched_rows)
+            save_activation_payload(
+                activations_file,
+                {
+                    "activation_position": "answer_mean",
+                    "model_name": args.model,
+                    "rows": activation_rows,
+                },
+            )
+            print(f"[{idx}/{total_rows}] checkpoint saved.", flush=True)
     finally:
         pm.close()
 
