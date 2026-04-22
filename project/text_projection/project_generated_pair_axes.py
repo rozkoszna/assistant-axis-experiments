@@ -18,17 +18,21 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
 import torch
 
-try:
-    from assistant_axis.internals import ProbingModel
-    from project.pipeline_utils import load_axis_vector, resolve_axis_files
-except ModuleNotFoundError:
-    from assistant_axis.internals import ProbingModel
-    from pipeline_utils import load_axis_vector, resolve_axis_files
+REPO_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = REPO_ROOT / "project"
+for path in (REPO_ROOT, PROJECT_ROOT):
+    path_str = str(path)
+    if path_str not in sys.path:
+        sys.path.insert(0, path_str)
+
+from assistant_axis.internals import ProbingModel
+from pipeline_utils import load_axis_vector, resolve_axis_files
 
 
 def parse_args() -> argparse.Namespace:
@@ -171,7 +175,7 @@ def write_jsonl(rows: list[dict[str, Any]], path: Path) -> None:
 def main() -> None:
     """Generate both responses, project their answer_mean activations, and save the results."""
     args = parse_args()
-    repo_root = Path(__file__).resolve().parent.parent
+    repo_root = REPO_ROOT
     axis_paths = resolve_axis_files(
         repo_root=repo_root,
         axes_dir=Path(args.axes_dir),
