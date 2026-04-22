@@ -22,10 +22,12 @@ import json
 from pathlib import Path
 from typing import Any
 
-import torch
-
-from project_text_axis import load_model, text_vector, project
-from projection_runner import resolve_axis_files
+try:
+    from project.text_projection.project_text_axis import load_model, text_vector, project
+    from project.pipeline_utils import load_axis_vector, resolve_axis_files
+except ModuleNotFoundError:
+    from project_text_axis import load_model, text_vector, project
+    from pipeline_utils import load_axis_vector, resolve_axis_files
 
 
 def parse_args() -> argparse.Namespace:
@@ -100,48 +102,6 @@ def parse_args() -> argparse.Namespace:
         help="Output JSONL path",
     )
     return parser.parse_args()
-
-
-def load_axis_vector(path: Path, layer: int) -> dict[str, Any]:
-    """Load one normalized axis vector and its metadata from a `.pt` file."""
-    data = torch.load(path, map_location="cpu")
-
-    if not isinstance(data, dict):
-        raise ValueError(f"Unexpected axis file format in {path}: {type(data)}")
-
-    if "vector" not in data:
-        raise KeyError(f"No 'vector' key found in {path}. Available keys: {list(data.keys())}")
-
-    vectors = data["vector"].float().cpu()
-
-    if vectors.ndim != 2:
-        raise ValueError(
-            f"Expected 'vector' in {path} to have shape [n_layers, d_model], "
-            f"got {tuple(vectors.shape)}"
-        )
-
-    if not (0 <= layer < vectors.shape[0]):
-        raise ValueError(
-            f"Layer {layer} out of range for {path}; "
-            f"vector stack shape is {tuple(vectors.shape)}"
-        )
-
-    axis = vectors[layer]
-    axis = axis / axis.norm()
-
-    return {
-        "trait": data.get("trait", path.stem),
-        "activation_position": data.get("activation_position"),
-        "filter_name": data.get("filter_name"),
-        "axis": axis,
-        "path": str(path),
-    }
-
-
-def iter_axis_files(axes_dir: Path):
-    """Yield all saved axis files in a directory in sorted order."""
-    for path in sorted(axes_dir.glob("*.pt")):
-        yield path
 
 
 def write_jsonl(rows: list[dict[str, Any]], path: Path) -> None:

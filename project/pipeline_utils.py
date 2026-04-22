@@ -4,6 +4,10 @@ import argparse
 import subprocess
 from pathlib import Path
 
+import torch
+
+from io_utils import load_trait_list
+
 
 DEFAULT_GEN_MODEL = "meta-llama/Llama-3.1-8B-Instruct"
 DEFAULT_JUDGE_MODEL = "gpt-4.1-mini"
@@ -93,8 +97,8 @@ def add_projection_args(
     parser.add_argument(
         "--projection-script",
         type=str,
-        default="project/project_pair_axes.py",
-        help="Path to pair projection script",
+        default="project/text_projection/project_pair_axes.py",
+        help="Path to the manual pair projection script (used only for manual checks).",
     )
 
 
@@ -129,3 +133,70 @@ def build_trait_output_paths(repo_root: Path, trait: str, run_name: str) -> dict
 def get_projection_output_path(repo_root: Path, trait: str, run_name: str) -> Path:
     """Return the projection JSONL path for a specific trait/run pair."""
     return build_trait_output_paths(repo_root, trait, run_name)["projections_file"]
+
+
+def resolve_axis_files(
+    *,
+    repo_root: Path,
+    axes_dir: Path,
+    projection_mode: str,
+    axis_trait: str | None,
+    traits_file: str | None,
+) -> list[Path]:
+    """Resolve the concrete `.pt` axis files requested by the projection settings."""
+    if not axes_dir.exists():
+        raise FileNotFoundError(f"Axes directory not found: {axes_dir}")
+
+    if projection_mode == "all":
+        axis_files = sorted(path for path in axes_dir.glob("*.pt") if path.is_file())
+    elif projection_mode == "one":
+        if not axis_trait:
+            raise ValueError("--projection-mode one requires --axis-trait")
+        axis_files = [axes_dir / f"{axis_trait}.pt"]
+    elif projection_mode == "subset":
+        if not traits_file:
+            raise ValueError("--projection-mode subset requires --axis-traits-file")
+        trait_names = load_trait_list(repo_root / traits_file)
+        axis_files = [axes_dir / f"{trait_name}.pt" for trait_name in trait_names]
+    else:
+        raise ValueError(f"Unsupported projection mode: {projection_mode}")
+
+    missing = [path for path in axis_files if not path.exists()]
+    if missing:
+        missing_text = "\n".join(f"  - {path}" for path in missing)
+        raise FileNotFoundError(f"Missing requested axis files:\n{missing_text}")
+
+    return axis_files
+
+
+def load_axis_vector(path: Path, layer: int) -> dict[str, object]:
+    """Load one saved axis file and return the normalized vector for one layer."""
+    data = torch.load(path, map_location="cpu", weights_only=False)
+
+    if "vector" not in data:
+        raise ValueError(f"Axis file is missing 'vector': {path}")
+
+    vector = data["vector"]
+    if not isinstance(vector, torch.Tensor):
+        vector = torch.tensor(vector)
+
+    if vector.ndim == 1:
+        layer_vector = vector
+    else:
+        if layer < 0 or layer >= vector.shape[0]:
+            raise IndexError(f"Layer {layer} out of range for axis file {path} with shape {tuple(vector.shape)}")
+        layer_vector = vector[layer]
+
+    layer_vector = layer_vector.float().cpu()
+    norm = torch.linalg.norm(layer_vector).item()
+    if norm == 0:
+        raise ValueError(f"Axis vector has zero norm: {path}")
+
+    return {
+        "trait": data.get("trait") or path.stem,
+        "path": str(path),
+        "activation_position": data.get("activation_position", "answer_mean"),
+        "filter_name": data.get("filter_name"),
+        "layer": layer,
+        "axis": layer_vector / norm,
+    }

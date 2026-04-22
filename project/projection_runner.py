@@ -25,15 +25,12 @@ Each row is still a matched pair:
 - neutral side
 - trait-conditioned side
 
-What it prefers
----------------
-Best case:
-- use saved generation-time activations from `activations/<run_name>.pt`
+What it requires
+----------------
+Projection now expects saved generation-time activations from:
+- `activations/<run_name>.pt`
 
-Older fallback:
-- re-encode the saved response text if no activation file exists
-
-It should never project prompts.
+If that activation file is missing, it should error.
 
 What comes out
 --------------
@@ -63,68 +60,8 @@ from typing import Any
 
 import torch
 
-from io_utils import load_jsonl, load_trait_list, write_jsonl
-
-
-def resolve_axis_files(
-    repo_root: Path,
-    axes_dir: Path,
-    projection_mode: str,
-    axis_trait: str | None,
-    traits_file: str | None,
-) -> list[Path]:
-    """
-    Resolve which axis .pt files should be used for projection.
-
-    Modes:
-    - all:    every .pt file in axes_dir
-    - one:    exactly one axis specified by --axis-trait
-    - subset: a JSON file containing a list of axis trait names
-    """
-    if not axes_dir.exists():
-        raise FileNotFoundError(f"Axes directory not found: {axes_dir}")
-
-    if projection_mode == "all":
-        axis_files = sorted(axes_dir.glob("*.pt"))
-        if not axis_files:
-            raise ValueError(f"No .pt files found in {axes_dir}")
-        return axis_files
-
-    if projection_mode == "one":
-        if not axis_trait:
-            raise ValueError("--projection-mode one requires --axis-trait")
-
-        axis_file = axes_dir / f"{axis_trait}.pt"
-        if not axis_file.exists():
-            raise FileNotFoundError(f"Axis file not found: {axis_file}")
-        return [axis_file]
-
-    if projection_mode == "subset":
-        if not traits_file:
-            raise ValueError("--projection-mode subset requires --axis-traits-file")
-
-        trait_names = load_trait_list(repo_root / traits_file)
-        axis_files: list[Path] = []
-        missing: list[str] = []
-
-        for trait_name in trait_names:
-            axis_file = axes_dir / f"{trait_name}.pt"
-            if axis_file.exists():
-                axis_files.append(axis_file)
-            else:
-                missing.append(trait_name)
-
-        if missing:
-            raise FileNotFoundError(
-                f"Missing axis files for traits: {missing} in {axes_dir}"
-            )
-
-        if not axis_files:
-            raise ValueError(f"No axis files resolved from {traits_file}")
-
-        return axis_files
-
-    raise ValueError(f"Unknown projection mode: {projection_mode}")
+from io_utils import write_jsonl
+from pipeline_utils import load_axis_vector, resolve_axis_files
 
 
 def run_projection_for_selected(
@@ -142,12 +79,8 @@ def run_projection_for_selected(
     """
     Project each selected neutral/trait pair onto the requested axes.
 
-    Projection is response-only. New pipeline runs should provide a saved
-    activation tensor file extracted during response generation. When that file
-    is present, projection uses those assistant-response activations directly.
-
-    Older runs may omit the activation file; in that case this helper falls
-    back to the existing text-based pair projection logic.
+    Projection is response-only and activation-based. The run must provide a
+    saved activation tensor file extracted during response generation.
 
     When `neutral_output_file` is provided, the same merged rows are also saved
     as a dedicated neutral-baseline artifact. This keeps a reusable baseline
@@ -172,176 +105,63 @@ def run_projection_for_selected(
         if axis_file.parent != axes_dir:
             raise ValueError("All axis files must come from the same axes directory")
 
-    all_rows: list[dict[str, Any]] = []
-    if activations_file is not None and activations_file.exists():
-        from project_pair_axes import load_axis_vector
-
-        activation_payload = torch.load(activations_file, map_location="cpu", weights_only=False)
-        activation_rows = activation_payload.get("rows")
-        if activation_rows is None:
-            raise ValueError(f"Expected 'rows' in activation file: {activations_file}")
-        if len(activation_rows) != len(selected_rows):
-            raise ValueError(
-                f"Activation row count {len(activation_rows)} does not match selected row count "
-                f"{len(selected_rows)} for {activations_file}"
-            )
-
-        axes = [load_axis_vector(path, layer) for path in axis_files]
-        print(
-            f"Using saved generation-time activations for {len(selected_rows)} rows "
-            f"across {len(axes)} axes."
+    if activations_file is None or not activations_file.exists():
+        raise FileNotFoundError(
+            "Projection now requires a saved activation file from response generation. "
+            f"Expected: {activations_file}"
         )
 
-        for idx, (row, activation_row) in enumerate(zip(selected_rows, activation_rows)):
-            neutral_act = activation_row.get("neutral_answer_mean")
-            trait_act = activation_row.get("trait_answer_mean")
-            if neutral_act is None or trait_act is None:
-                raise ValueError(
-                    f"Missing saved answer_mean activations for row index {idx} in {activations_file}"
-                )
+    all_rows: list[dict[str, Any]] = []
+    activation_payload = torch.load(activations_file, map_location="cpu", weights_only=False)
+    activation_rows = activation_payload.get("rows")
+    if activation_rows is None:
+        raise ValueError(f"Expected 'rows' in activation file: {activations_file}")
+    if len(activation_rows) != len(selected_rows):
+        raise ValueError(
+            f"Activation row count {len(activation_rows)} does not match selected row count "
+            f"{len(selected_rows)} for {activations_file}"
+        )
 
-            neutral_act = neutral_act.float().cpu()
-            trait_act = trait_act.float().cpu()
+    axes = [load_axis_vector(path, layer) for path in axis_files]
+    print(
+        f"Using saved generation-time activations for {len(selected_rows)} rows "
+        f"across {len(axes)} axes."
+    )
 
-            for axis_info in axes:
-                score_a = torch.dot(neutral_act[layer], axis_info["axis"]).item()
-                score_b = torch.dot(trait_act[layer], axis_info["axis"]).item()
-
-                merged = dict(row)
-                merged.update(
-                    {
-                        "projection_trait": axis_info["trait"],
-                        "projection_axis_path": axis_info["path"],
-                        "projection_activation_position": axis_info["activation_position"],
-                        "projection_filter_name": axis_info["filter_name"],
-                        "projection_layer": layer,
-                        "projection_score_neutral": score_a,
-                        "projection_score_trait": score_b,
-                        "projection_delta_trait_minus_neutral": score_b - score_a,
-                        "projection_text_source_neutral": "neutral_response",
-                        "projection_text_source_trait": "trait_response",
-                        "projection_activation_source": activation_payload.get(
-                            "activation_position", "answer_mean"
-                        ),
-                    }
-                )
-                all_rows.append(merged)
-    else:
-        use_optimized_path = projection_script.name == "project_pair_axes.py"
-        if use_optimized_path:
-            from project_pair_axes import load_axis_vector, project_text_pair
-            from project_text_axis import load_model
-
-            axes = [load_axis_vector(path, layer) for path in axis_files]
-
-            print(
-                f"Using in-process text projection path for {len(selected_rows)} rows "
-                f"across {len(axes)} axes."
+    for idx, (row, activation_row) in enumerate(zip(selected_rows, activation_rows)):
+        neutral_act = activation_row.get("neutral_answer_mean")
+        trait_act = activation_row.get("trait_answer_mean")
+        if neutral_act is None or trait_act is None:
+            raise ValueError(
+                f"Missing saved answer_mean activations for row index {idx} in {activations_file}"
             )
-            model, tokenizer = load_model(model_name)
 
-            for idx, row in enumerate(selected_rows):
-                if not row.get("neutral_response") or not row.get("trait_response"):
-                    raise ValueError(
-                        "Projection requires response fields on every selected row. "
-                        f"Missing response text in row index {idx} from {selected_file}. "
-                        "Run response generation first instead of projecting prompts."
-                    )
+        neutral_act = neutral_act.float().cpu()
+        trait_act = trait_act.float().cpu()
 
-                label_a = "neutral_response"
-                label_b = "trait_response"
-                pair_rows = project_text_pair(
-                    model=model,
-                    tokenizer=tokenizer,
-                    axes=axes,
-                    text_a=row["neutral_response"],
-                    text_b=row["trait_response"],
-                    label_a=label_a,
-                    label_b=label_b,
-                    layer=layer,
-                )
+        for axis_info in axes:
+            score_a = torch.dot(neutral_act[layer], axis_info["axis"]).item()
+            score_b = torch.dot(trait_act[layer], axis_info["axis"]).item()
 
-                for pair_row in pair_rows:
-                    merged = dict(row)
-                    merged.update(
-                        {
-                            "projection_trait": pair_row["trait"],
-                            "projection_axis_path": pair_row["axis_path"],
-                            "projection_activation_position": pair_row["activation_position"],
-                            "projection_filter_name": pair_row["filter_name"],
-                            "projection_layer": pair_row["layer"],
-                            "projection_score_neutral": pair_row["score_a"],
-                            "projection_score_trait": pair_row["score_b"],
-                            "projection_delta_trait_minus_neutral": pair_row["delta_b_minus_a"],
-                            "projection_text_source_neutral": label_a,
-                            "projection_text_source_trait": label_b,
-                            "projection_activation_source": "reencoded_response_text",
-                        }
-                    )
-                    all_rows.append(merged)
-        else:
-            temp_dir = output_file.parent / ".tmp_pair_projection"
-            temp_dir.mkdir(parents=True, exist_ok=True)
-
-            for idx, row in enumerate(selected_rows):
-                if not row.get("neutral_response") or not row.get("trait_response"):
-                    raise ValueError(
-                        "Projection requires response fields on every selected row. "
-                        f"Missing response text in row index {idx} from {selected_file}. "
-                        "Run response generation first instead of projecting prompts."
-                    )
-
-                pair_out = temp_dir / f"pair_{idx:05d}.jsonl"
-                text_a = row["neutral_response"]
-                text_b = row["trait_response"]
-                label_a = "neutral_response"
-                label_b = "trait_response"
-
-                cmd = [
-                    "uv",
-                    "run",
-                    "python",
-                    str(projection_script),
-                    "--axes-dir",
-                    str(axes_dir),
-                    "--model-name",
-                    model_name,
-                    "--layer",
-                    str(layer),
-                    "--text-a",
-                    text_a,
-                    "--text-b",
-                    text_b,
-                    "--label-a",
-                    label_a,
-                    "--label-b",
-                    label_b,
-                    "--output",
-                    str(pair_out),
-                ]
-                run_cmd(cmd)
-
-                pair_rows = load_jsonl(pair_out)
-                pair_rows = [r for r in pair_rows if r["trait"] in requested_traits]
-
-                for pair_row in pair_rows:
-                    merged = dict(row)
-                    merged.update(
-                        {
-                            "projection_trait": pair_row["trait"],
-                            "projection_axis_path": pair_row["axis_path"],
-                            "projection_activation_position": pair_row["activation_position"],
-                            "projection_filter_name": pair_row["filter_name"],
-                            "projection_layer": pair_row["layer"],
-                            "projection_score_neutral": pair_row["score_a"],
-                            "projection_score_trait": pair_row["score_b"],
-                            "projection_delta_trait_minus_neutral": pair_row["delta_b_minus_a"],
-                            "projection_text_source_neutral": label_a,
-                            "projection_text_source_trait": label_b,
-                            "projection_activation_source": "custom_projection_script",
-                        }
-                    )
-                    all_rows.append(merged)
+            merged = dict(row)
+            merged.update(
+                {
+                    "projection_trait": axis_info["trait"],
+                    "projection_axis_path": axis_info["path"],
+                    "projection_activation_position": axis_info["activation_position"],
+                    "projection_filter_name": axis_info["filter_name"],
+                    "projection_layer": layer,
+                    "projection_score_neutral": score_a,
+                    "projection_score_trait": score_b,
+                    "projection_delta_trait_minus_neutral": score_b - score_a,
+                    "projection_text_source_neutral": "neutral_response",
+                    "projection_text_source_trait": "trait_response",
+                    "projection_activation_source": activation_payload.get(
+                        "activation_position", "answer_mean"
+                    ),
+                }
+            )
+            all_rows.append(merged)
 
     write_jsonl(all_rows, output_file)
     print(f"Saved {len(all_rows)} projection rows to {output_file}")

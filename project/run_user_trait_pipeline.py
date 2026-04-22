@@ -46,9 +46,8 @@ The intended measured object is the assistant response:
 - neutral user prompt -> neutral assistant response
 - trait user prompt -> trait assistant response
 
-For new runs, projection should use the saved generation-time activations from
-the response stage. If those are unavailable, the helper may fall back to
-re-encoding the saved response text, but it should never project prompts.
+Projection uses the saved generation-time activations from the response stage.
+If the activation file is missing, projection should stop with an error.
 
 Neutral vs trait
 ----------------
@@ -95,7 +94,6 @@ activation capture, and projection logic live in the stage-specific files it
 calls.
 """
 
-#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
@@ -109,12 +107,10 @@ from pipeline_utils import (
     add_projection_args,
     add_selection_args,
     build_trait_output_paths,
+    resolve_axis_files,
     run_cmd,
 )
-from projection_runner import (
-    resolve_axis_files,
-    run_projection_for_selected,
-)
+from projection_runner import run_projection_for_selected
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -348,8 +344,8 @@ def main() -> None:
         )
         run_cmd(response_cmd, cwd=REPO_ROOT)
 
-        # Resolve which saved axes to use, then project the response pairs onto
-        # those axes. The projection helper prefers response fields when present.
+        # Resolve which saved axes to use, then project the saved assistant
+        # activations onto those axes.
         axes_dir = REPO_ROOT / args.axes_dir
         axis_files = resolve_axis_files(
             repo_root=REPO_ROOT,

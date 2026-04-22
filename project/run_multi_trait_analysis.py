@@ -83,7 +83,6 @@ activation saving, and projection work happens inside
 `project/run_user_trait_pipeline.py`.
 """
 
-#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
