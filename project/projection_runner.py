@@ -60,7 +60,7 @@ from typing import Any
 
 import torch
 
-from io_utils import write_jsonl
+from io_utils import load_jsonl, write_jsonl
 from pipeline_utils import load_axis_vector, resolve_axis_files
 
 
