@@ -2,18 +2,20 @@
 from __future__ import annotations
 
 import argparse
+import math
 from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
-from matplotlib.colors import TwoSlopeNorm
-from plot_utils import aggregate, infer_run_label, load_jsonl, write_csv
+import numpy as np
+
+from plot_utils import infer_run_label, load_jsonl, write_csv
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse CLI arguments for plotting a trait-by-axis comparison heatmap."""
+    """Parse CLI arguments for plotting many traits across many axes as grouped bars."""
     parser = argparse.ArgumentParser(
-        description="Plot many user-trait runs across many projection axes, always including Neutral."
+        description="Plot many user-trait runs across many projection axes as grouped bars with variance."
     )
     parser.add_argument(
         "--inputs",
@@ -21,6 +23,24 @@ def parse_args() -> argparse.Namespace:
         nargs="+",
         required=True,
         help="Projection JSONL files from multiple trait runs",
+    )
+    parser.add_argument(
+        "--labels",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Optional labels corresponding to --inputs. Defaults to inferred trait labels.",
+    )
+    parser.add_argument(
+        "--include-neutral",
+        action="store_true",
+        help="Also include the aggregated neutral baseline from projection_score_neutral.",
+    )
+    parser.add_argument(
+        "--neutral-label",
+        type=str,
+        default="Neutral",
+        help="Display label for the aggregated neutral baseline.",
     )
     parser.add_argument(
         "--output",
@@ -35,16 +55,17 @@ def parse_args() -> argparse.Namespace:
         help="Optional CSV summary output path",
     )
     parser.add_argument(
-        "--aggregate",
-        choices=["mean", "median"],
-        default="mean",
-        help="Aggregation over rows within each run/axis",
-    )
-    parser.add_argument(
         "--top-k-axes",
         type=int,
         default=None,
-        help="Optional: keep only top K axes by average absolute trait score across runs",
+        help="Optional: keep only top K axes by average absolute trait mean across runs",
+    )
+    parser.add_argument(
+        "--axis-filter",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Optional explicit list of axes to keep.",
     )
     parser.add_argument(
         "--title",
@@ -53,70 +74,95 @@ def parse_args() -> argparse.Namespace:
         help="Optional plot title",
     )
     return parser.parse_args()
+
+
+def compute_stats(values: list[float]) -> dict[str, float | int]:
+    """Compute count, mean, std, min, and max for one axis/condition group."""
+    if not values:
+        raise ValueError("Cannot summarize empty values")
+
+    count = len(values)
+    mean = sum(values) / count
+    if count > 1:
+        variance = sum((value - mean) ** 2 for value in values) / (count - 1)
+        std = math.sqrt(variance)
+    else:
+        std = 0.0
+
+    return {
+        "count": count,
+        "mean": mean,
+        "std": std,
+        "min": min(values),
+        "max": max(values),
+    }
+
+
+def collect_axis_values(rows: list[dict[str, Any]], value_key: str) -> dict[str, list[float]]:
+    """Collect projection values grouped by axis from one projection file."""
+    by_axis: dict[str, list[float]] = {}
+    for row in rows:
+        axis_trait = row.get("projection_trait")
+        if axis_trait is None:
+            continue
+        by_axis.setdefault(str(axis_trait), []).append(float(row[value_key]))
+    return by_axis
+
+
+def axis_intersection(series: list[dict[str, list[float]]]) -> list[str]:
+    """Return sorted axes that are present in every provided series."""
+    if not series:
+        return []
+    shared = set(series[0].keys())
+    for item in series[1:]:
+        shared &= set(item.keys())
+    return sorted(shared)
+
+
 def main() -> None:
-    """Aggregate many-axis projections across runs and render a heatmap."""
+    """Aggregate many-axis projections across runs and render a grouped bar chart with error bars."""
     args = parse_args()
 
-    summaries: list[dict[str, Any]] = []
-    neutral_by_axis_all_runs: dict[str, list[float]] = {}
+    if args.labels is not None and len(args.labels) != len(args.inputs):
+        raise ValueError("--labels must have the same length as --inputs")
 
-    for input_path_str in args.inputs:
+    trait_series: list[tuple[str, dict[str, list[float]]]] = []
+    neutral_inputs: list[dict[str, list[float]]] = []
+
+    for idx, input_path_str in enumerate(args.inputs):
         input_path = Path(input_path_str)
-        run_label = infer_run_label(input_path)
+        label = args.labels[idx] if args.labels is not None else infer_run_label(input_path)
         rows = load_jsonl(input_path)
+        if not rows:
+            raise ValueError(f"No projection rows found in {input_path}")
 
-        by_axis_trait: dict[str, list[float]] = {}
-        counts_trait: dict[str, int] = {}
+        trait_by_axis = collect_axis_values(rows, "projection_score_trait")
+        trait_series.append((label, trait_by_axis))
 
-        for row in rows:
-            axis_trait = row.get("projection_trait")
-            if axis_trait is None:
-                continue
+        if args.include_neutral:
+            neutral_inputs.append(collect_axis_values(rows, "projection_score_neutral"))
 
-            trait_score = float(row["projection_score_trait"])
-            neutral_score = float(row["projection_score_neutral"])
+    all_series = [series for _, series in trait_series]
+    merged_neutral: dict[str, list[float]] = {}
+    if args.include_neutral:
+        for series in neutral_inputs:
+            for axis_trait, values in series.items():
+                merged_neutral.setdefault(axis_trait, []).extend(values)
+        all_series = [merged_neutral, *all_series]
 
-            by_axis_trait.setdefault(axis_trait, []).append(trait_score)
-            counts_trait[axis_trait] = counts_trait.get(axis_trait, 0) + 1
+    if args.axis_filter:
+        axis_traits = list(dict.fromkeys(args.axis_filter))
+    else:
+        axis_traits = axis_intersection(all_series)
 
-            neutral_by_axis_all_runs.setdefault(axis_trait, []).append(neutral_score)
+    if not axis_traits:
+        raise ValueError("No shared axes found across inputs")
 
-        for axis_trait, values in by_axis_trait.items():
-            summaries.append(
-                {
-                    "run_label": run_label,
-                    "axis_trait": axis_trait,
-                    "kind": "trait",
-                    "aggregate": args.aggregate,
-                    "n_rows": counts_trait[axis_trait],
-                    "value": aggregate(values, args.aggregate),
-                }
-            )
-
-    if not summaries:
-        raise ValueError("No projection rows found across inputs.")
-
-    for axis_trait, values in neutral_by_axis_all_runs.items():
-        summaries.append(
-            {
-                "run_label": "Neutral",
-                "axis_trait": axis_trait,
-                "kind": "neutral",
-                "aggregate": args.aggregate,
-                "n_rows": len(values),
-                "value": aggregate(values, args.aggregate),
-            }
-        )
-
-    run_labels = sorted({row["run_label"] for row in summaries if row["run_label"] != "Neutral"})
-    run_labels = ["Neutral"] + run_labels
-    axis_traits = sorted({row["axis_trait"] for row in summaries})
-
-    if args.top_k_axes is not None:
+    if args.top_k_axes is not None and args.axis_filter is None:
         axis_strength: dict[str, list[float]] = {}
-        for row in summaries:
-            axis_strength.setdefault(row["axis_trait"], []).append(abs(float(row["value"])))
-
+        for _, series in trait_series:
+            for axis_trait, values in series.items():
+                axis_strength.setdefault(axis_trait, []).append(abs(compute_stats(values)["mean"]))
         ranked_axes = sorted(
             axis_traits,
             key=lambda axis: sum(axis_strength.get(axis, [])) / max(len(axis_strength.get(axis, [])), 1),
@@ -124,31 +170,55 @@ def main() -> None:
         )
         axis_traits = ranked_axes[: args.top_k_axes]
 
-    summary_lookup = {
-        (row["run_label"], row["axis_trait"]): float(row["value"])
-        for row in summaries
-        if row["axis_trait"] in axis_traits
-    }
+    summary_rows: list[dict[str, Any]] = []
+    plot_series: list[tuple[str, dict[str, dict[str, float | int]]]] = []
 
-    matrix = []
-    for run_label in run_labels:
-        matrix_row = []
+    if args.include_neutral:
+        neutral_summary: dict[str, dict[str, float | int]] = {}
         for axis_trait in axis_traits:
-            matrix_row.append(summary_lookup.get((run_label, axis_trait), 0.0))
-        matrix.append(matrix_row)
+            neutral_summary[axis_trait] = compute_stats(merged_neutral[axis_trait])
+            summary_rows.append({"run_label": args.neutral_label, "axis_trait": axis_trait, **neutral_summary[axis_trait]})
+        plot_series.append((args.neutral_label, neutral_summary))
 
-    flat_values = [value for row in matrix for value in row]
-    max_abs_value = max((abs(value) for value in flat_values), default=1.0)
-    color_norm = TwoSlopeNorm(vmin=-max_abs_value, vcenter=0.0, vmax=max_abs_value)
+    for label, series in trait_series:
+        series_summary: dict[str, dict[str, float | int]] = {}
+        for axis_trait in axis_traits:
+            series_summary[axis_trait] = compute_stats(series[axis_trait])
+            summary_rows.append({"run_label": label, "axis_trait": axis_trait, **series_summary[axis_trait]})
+        plot_series.append((label, series_summary))
 
-    plt.figure(figsize=(max(10, len(axis_traits) * 0.5), max(6, len(run_labels) * 0.5)))
-    plt.imshow(matrix, aspect="auto", cmap="RdBu_r", norm=color_norm)
-    plt.colorbar(label=f"{args.aggregate} projection score")
-    plt.xticks(range(len(axis_traits)), axis_traits, rotation=45, ha="right")
-    plt.yticks(range(len(run_labels)), run_labels)
+    num_axes = len(axis_traits)
+    num_series = len(plot_series)
+    x = np.arange(num_axes)
+    group_width = 0.82
+    bar_width = group_width / max(num_series, 1)
+    offsets = (np.arange(num_series) - (num_series - 1) / 2.0) * bar_width
+
+    plt.figure(figsize=(max(12, num_axes * 1.3), 7))
+    cmap = plt.get_cmap("tab10")
+
+    for idx, (label, series_summary) in enumerate(plot_series):
+        means = [float(series_summary[axis]["mean"]) for axis in axis_traits]
+        stds = [float(series_summary[axis]["std"]) for axis in axis_traits]
+        positions = x + offsets[idx]
+        plt.bar(
+            positions,
+            means,
+            width=bar_width * 0.92,
+            label=label,
+            color=cmap(idx % 10),
+            alpha=0.9,
+            yerr=stds,
+            capsize=4,
+            error_kw={"elinewidth": 1.2, "alpha": 0.9},
+        )
+
+    plt.axhline(0.0, color="#666666", linewidth=1.0, alpha=0.7)
+    plt.xticks(x, axis_traits, rotation=35, ha="right")
+    plt.ylabel("Mean projection score")
     plt.xlabel("Projection axis")
-    plt.ylabel("Series")
-    plt.title(args.title or "Many traits on many axes (with Neutral)")
+    plt.title(args.title or "Many traits across many axes")
+    plt.legend()
     plt.tight_layout()
 
     output_path = Path(args.output)
@@ -158,9 +228,9 @@ def main() -> None:
 
     if args.csv_output:
         write_csv(
-            summaries,
+            summary_rows,
             Path(args.csv_output),
-            fieldnames=["run_label", "axis_trait", "kind", "aggregate", "n_rows", "value"],
+            fieldnames=["run_label", "axis_trait", "count", "mean", "std", "min", "max"],
         )
 
     print(f"Saved plot to {output_path}")
