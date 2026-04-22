@@ -63,27 +63,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def sample_next_token(logits: torch.Tensor, temperature: float, top_p: float) -> int:
-    """Sample one token id from logits using greedy or top-p sampling."""
-    if temperature <= 0:
-        return int(torch.argmax(logits, dim=-1).item())
-
-    logits = logits / temperature
-    probs = torch.softmax(logits, dim=-1)
-
-    if 0 < top_p < 1.0:
-        sorted_probs, sorted_indices = torch.sort(probs, descending=True)
-        cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
-        keep_mask = cumulative_probs <= top_p
-        keep_mask[..., 0] = True
-
-        filtered_probs = torch.zeros_like(probs)
-        filtered_probs[sorted_indices[keep_mask]] = probs[sorted_indices[keep_mask]]
-        probs = filtered_probs / filtered_probs.sum()
-
-    return int(torch.multinomial(probs, num_samples=1).item())
-
-
 def build_chat_kwargs(model_name: str) -> dict[str, Any]:
     """Return chat-template kwargs for model-specific quirks."""
     if "qwen" in model_name.lower():
@@ -100,7 +79,7 @@ def generate_response_with_answer_mean(
     temperature: float,
     top_p: float,
 ) -> tuple[str, torch.Tensor]:
-    """Generate one assistant response and capture generation-time answer_mean activations."""
+    """Generate one assistant response and average layer activations over generated answer tokens."""
     tokenizer = pm.tokenizer
     model = pm.model
     device = pm.device
@@ -121,70 +100,66 @@ def generate_response_with_answer_mean(
         add_special_tokens=False,
     )
     input_ids = prompt_inputs["input_ids"].to(device)
-    attention_mask = prompt_inputs["attention_mask"].to(device)
+    prompt_len = input_ids.shape[1]
 
     model_layers = pm.get_layers()
     num_layers = len(model_layers)
-    captured_last_token: dict[int, torch.Tensor] = {}
+    captured_sequence: dict[int, torch.Tensor] = {}
     handles = []
 
     def create_hook_fn(layer_idx: int):
         def hook_fn(module, inputs, output):
             act_tensor = output[0] if isinstance(output, tuple) else output
-            captured_last_token[layer_idx] = act_tensor[0, -1, :].detach().cpu()
+            captured_sequence[layer_idx] = act_tensor[0].detach().cpu()
 
         return hook_fn
 
     for layer_idx, layer_module in enumerate(model_layers):
         handles.append(layer_module.register_forward_hook(create_hook_fn(layer_idx)))
 
-    generated_token_ids: list[int] = []
-    generated_activations: list[torch.Tensor] = []
-    eos_token_id = tokenizer.eos_token_id
-
     try:
         with torch.inference_mode():
-            outputs = model(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                use_cache=True,
-            )
-            past_key_values = outputs.past_key_values
-            next_token_id = sample_next_token(outputs.logits[0, -1, :], temperature, top_p)
+            generation_kwargs: dict[str, Any] = {
+                "input_ids": input_ids,
+                "attention_mask": prompt_inputs["attention_mask"].to(device),
+                "max_new_tokens": max_new_tokens,
+                "pad_token_id": tokenizer.pad_token_id,
+                "do_sample": temperature > 0,
+            }
+            if temperature > 0:
+                generation_kwargs["temperature"] = temperature
+                generation_kwargs["top_p"] = top_p
 
-            for _ in range(max_new_tokens):
-                if eos_token_id is not None and next_token_id == eos_token_id:
-                    break
-
-                generated_token_ids.append(next_token_id)
-
-                step_input_ids = torch.tensor([[next_token_id]], device=device)
-                step_attention_mask = torch.ones_like(step_input_ids, device=device)
-                captured_last_token.clear()
-
-                outputs = model(
-                    input_ids=step_input_ids,
-                    attention_mask=step_attention_mask,
-                    past_key_values=past_key_values,
-                    use_cache=True,
-                )
-                past_key_values = outputs.past_key_values
-
-                token_activation = torch.stack(
-                    [captured_last_token[layer_idx] for layer_idx in range(num_layers)]
-                )
-                generated_activations.append(token_activation)
-                next_token_id = sample_next_token(outputs.logits[0, -1, :], temperature, top_p)
+            output_ids = model.generate(**generation_kwargs)
+            full_input_ids = output_ids[:, :max_model_len]
+            _ = model(full_input_ids)
     finally:
         for handle in handles:
             handle.remove()
 
-    response_text = tokenizer.decode(generated_token_ids, skip_special_tokens=True)
-    if generated_activations:
-        answer_mean = torch.stack(generated_activations).mean(dim=0).to(torch.bfloat16)
-    else:
+    generated_ids = full_input_ids[0, prompt_len:]
+    response_text = tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
+
+    if generated_ids.numel() == 0:
         hidden_size = model.config.hidden_size
         answer_mean = torch.zeros((num_layers, hidden_size), dtype=torch.bfloat16)
+        return response_text, answer_mean
+
+    missing_layers = [layer_idx for layer_idx in range(num_layers) if layer_idx not in captured_sequence]
+    if missing_layers:
+        raise ValueError(f"Failed to capture activations for layers: {missing_layers}")
+
+    answer_activations = []
+    for layer_idx in range(num_layers):
+        layer_seq = captured_sequence[layer_idx]
+        if layer_seq.shape[0] != full_input_ids.shape[1]:
+            raise ValueError(
+                "Captured activation length does not match generated sequence length: "
+                f"{layer_seq.shape[0]} vs {full_input_ids.shape[1]}"
+            )
+        answer_activations.append(layer_seq[prompt_len:, :].mean(dim=0))
+
+    answer_mean = torch.stack(answer_activations).to(torch.bfloat16)
 
     return response_text, answer_mean
 
