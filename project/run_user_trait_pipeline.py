@@ -1,146 +1,98 @@
 #!/usr/bin/env python3
 """
-Run the full user-trait prompt pipeline for a single trait.
+Run the full user-trait experiment for one trait.
 
-Overview
---------
-This script orchestrates the end-to-end "user trait -> assistant behavior"
-pipeline for one user trait at a time. It shells out to stage-specific
-scripts, manages standard output paths, and optionally runs response
-projection and plotting.
+What this script does
+---------------------
+This is the main orchestrator for experiments like:
+- "What happens when the user sounds confused?"
+- "How does the assistant change for a very confused user?"
 
-There are two distinct trait dimensions in this pipeline:
-- user trait: exactly one per run, passed as `--trait`
-- assistant axis traits: one, many, or all saved axes used during projection
+One run always means:
+- one user trait, passed with `--trait`
+- many prompt/response examples for that trait
+- optionally, projection onto one or more assistant axes
 
-Example:
-- user trait = `confused`
-- assistant axes = `decisive`, `disorganized`, `chaotic`, `contrarian`, ...
-
-So one pipeline run is not "many user traits in one file".
-Instead, it is:
-- one user trait
-- many selected neutral/trait examples for that user trait
-- many assistant-axis projection rows derived from those examples
-
-Neutral side
+The pipeline
 ------------
-Every selected example has two sides:
-- a neutral side
-- a trait-conditioned side
+For one trait, the script runs these stages in order:
 
-If projection is enabled, the pipeline generates both:
-- `neutral_response`
-- `trait_response`
+1. Generate matched user prompt pairs:
+   - `neutral_prompt`
+   - `trait_prompt`
 
-The neutral side is not a separate experiment. It is the matched baseline for
-the same selected examples in the same run. That is why the pipeline can save
-`projections/<run_name>__neutral.jsonl` without any extra projection pass.
+2. Judge and filter those prompt pairs.
 
-The pipeline stages are:
-1. Generate candidate neutral/trait USER prompt pairs.
-2. Judge and score those prompt pairs.
-3. Select the prompt pairs to keep.
-4. If projection is enabled, generate assistant responses to the selected pairs.
-5. Project the assistant responses onto one or more saved axes.
-6. Optionally plot the projection results.
+3. Keep the selected prompt pairs.
 
-Typical workflow
+4. If projection is enabled:
+   - generate assistant answers for both sides
+   - save:
+     - `neutral_response`
+     - `trait_response`
+   - save generation-time assistant activations in:
+     - `activations/<run_name>.pt`
+
+5. Project the saved assistant-side activations onto one or more precomputed
+   assistant axes.
+
+6. Optionally make a plot from the projection output.
+
+What is being measured
+----------------------
+This script does not project user prompts.
+
+The intended measured object is the assistant response:
+- neutral user prompt -> neutral assistant response
+- trait user prompt -> trait assistant response
+
+For new runs, projection should use the saved generation-time activations from
+the response stage. If those are unavailable, the helper may fall back to
+re-encoding the saved response text, but it should never project prompts.
+
+Neutral vs trait
 ----------------
-For a given trait (for example `confused`), the script:
-- builds a run name,
-- determines the standard output paths for all artifacts,
-- runs prompt generation,
-- runs prompt judging,
-- runs prompt selection,
-- if projection is enabled, generates assistant responses for the selected prompts,
-- resolves projection axes and projects those assistant responses,
-- optionally creates a plot from the projection output.
+Each selected example is a matched pair:
+- neutral side
+- trait-conditioned side
 
-The important measurement detail is:
-- prompt files are used to define the experimental stimulus
-- response files are always used for the final projection
+So the "neutral" output is not a separate experiment. It is the baseline side
+of the same run, for the same selected examples.
 
-So the projected object in the current pipeline is:
-- `neutral_response` vs `trait_response`
-
-If response fields are missing, projection now raises an error instead of
-silently projecting prompts.
-
-Each saved projection file therefore contains:
-- one user-trait run
-- many assistant-axis rows identified by `projection_trait`
-
-The companion file:
+That is why the pipeline can also save:
 - `projections/<run_name>__neutral.jsonl`
 
-is not "neutral for one assistant trait".
-It is the neutral side of that same run, across the same projected assistant
-axes, saved as a reusable baseline artifact for later plotting.
-
-Inputs
-------
-Required:
-- `--trait`: name of the user trait to model
-
-Optional:
-- `--explanation`: additional trait description for generation
-- `--run-name`: explicit run name; otherwise a generated name is used
-- `--intents-file`: JSONL file of input intents
-
-The script also accepts shared settings for:
-- generation
-- judging
-- selection
-- projection
-- response generation
-- plotting
-
-Projection
-----------
-Projection is optional and enabled with `--with-projection`.
-
-When enabled, the pipeline first generates assistant responses for the selected
-prompt pairs, and then projects those responses.
-
-You must also provide:
-- `--axes-dir`: directory containing saved `.pt` axis files
-
-Projection modes:
-- `all`: use all axis files in the directory
-- `one`: use one named axis (requires `--axis-trait`)
-- `subset`: use a subset of axes from a JSON file (requires
-  `--axis-traits-file`)
-
-Plotting
---------
-Plotting is optional and enabled with `--with-plot`.
-
-Important:
-- `--with-plot` requires `--with-projection`, because the plot is created
-  from the projection output.
+This file is a reusable neutral baseline for the same run across the same
+assistant axes.
 
 Outputs
 -------
-For each run, the script writes artifacts under:
-`outputs/user_prompts/<trait>/`
+Artifacts are written under:
+- `outputs/user_prompts/<trait>/`
 
-Including:
+Main files:
 - `candidates/<run_name>.jsonl`
 - `judged/<run_name>.jsonl`
 - `selected/<run_name>.jsonl`
-- `responses/<run_name>.jsonl` (assistant outputs for selected prompt pairs; only if projection is enabled)
-- `projections/<run_name>.jsonl` (if enabled)
-- `projections/<run_name>__neutral.jsonl` (paired neutral baseline, if enabled)
-- `plots/<run_name>.png` (if enabled)
+- `responses/<run_name>.jsonl`
+- `activations/<run_name>.pt`
+- `projections/<run_name>.jsonl`
+- `projections/<run_name>__neutral.jsonl`
+- `plots/<run_name>.png`
 
-Notes
------
-- This script is an orchestrator. It does not implement the core generation,
-  judging, response generation, or projection math itself.
-- Instead, it invokes the stage-specific scripts using subprocess calls.
-- It assumes the downstream scripts follow the expected file and directory
-  conventions.
+Important options
+-----------------
+- `--with-projection` enables response generation, activation capture, and projection.
+- `--with-plot` requires `--with-projection`.
+- `--axes-dir` points to the saved `.pt` assistant axes.
+- `--projection-mode` controls whether projection uses:
+  - all axes
+  - one named axis
+  - a subset of axes from a file
+
+This script is an orchestrator only. The actual generation, judging,
+activation capture, and projection logic live in the stage-specific files it
+calls.
 """
 
 #!/usr/bin/env python3
@@ -203,6 +155,7 @@ def print_run_summary(args: argparse.Namespace, run_name: str, paths: dict[str, 
 
     if args.with_projection:
         print(f"Responses: {paths['responses_file']}")
+        print(f"Activations: {paths['activations_file']}")
         print(f"Projections: {paths['projections_file']}")
         print(f"Neutral baseline: {paths['neutral_projections_file']}")
         print(f"Projection mode: {args.projection_mode}")
@@ -326,7 +279,12 @@ def build_plot_cmd(args: argparse.Namespace, projections_file: Path, plot_file: 
     ]
 
 
-def build_response_cmd(args: argparse.Namespace, selected_file: Path, responses_file: Path) -> list[str]:
+def build_response_cmd(
+    args: argparse.Namespace,
+    selected_file: Path,
+    responses_file: Path,
+    activations_file: Path,
+) -> list[str]:
     """Build the stage-4 command that generates assistant responses for selected prompts."""
     cmd = [
         "uv",
@@ -336,6 +294,8 @@ def build_response_cmd(args: argparse.Namespace, selected_file: Path, responses_
         str(selected_file),
         "--output-file",
         str(responses_file),
+        "--activations-file",
+        str(activations_file),
         "--model",
         args.projection_model,
         "--max-model-len",
@@ -380,7 +340,12 @@ def main() -> None:
         # Before projection, generate assistant responses to the selected prompt
         # pairs. This keeps the final measurement focused on model behavior rather
         # than just prompt wording.
-        response_cmd = build_response_cmd(args, paths["selected_file"], paths["responses_file"])
+        response_cmd = build_response_cmd(
+            args,
+            paths["selected_file"],
+            paths["responses_file"],
+            paths["activations_file"],
+        )
         run_cmd(response_cmd, cwd=REPO_ROOT)
 
         # Resolve which saved axes to use, then project the response pairs onto
@@ -400,6 +365,7 @@ def main() -> None:
 
         run_projection_for_selected(
             selected_file=paths["responses_file"],
+            activations_file=paths["activations_file"],
             output_file=paths["projections_file"],
             neutral_output_file=paths["neutral_projections_file"],
             projection_script=REPO_ROOT / args.projection_script,

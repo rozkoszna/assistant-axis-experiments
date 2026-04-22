@@ -124,9 +124,12 @@ Purpose:
 - Reads the selected prompt pairs and generates assistant responses for:
   - `neutral_prompt`
   - `trait_prompt`
+- Captures generation-time assistant activations and saves an `answer_mean`
+  tensor for each generated response.
 
 Output:
 - `outputs/user_prompts/<trait>/responses/<run_name>.jsonl`
+- `outputs/user_prompts/<trait>/activations/<run_name>.pt`
 
 Each row contains:
 - `neutral_prompt`
@@ -135,6 +138,8 @@ Each row contains:
 - `trait_response`
 
 This is the key response-level file for trait-alignment experiments.
+The companion activation file stores the assistant-response vectors used for
+projection.
 
 ### 5. Projection
 
@@ -144,11 +149,15 @@ Files:
 - `project/project_text_axis.py`
 
 Purpose:
-- Projects text pairs onto one or more precomputed axes.
+- Projects assistant-response activations onto one or more precomputed axes.
 
 Current behavior:
-- Projection uses `neutral_response` and `trait_response`.
-- If either response field is missing, projection raises an error.
+- Projection prefers saved generation-time activations from:
+  - `outputs/user_prompts/<trait>/activations/<run_name>.pt`
+- Those activations correspond to `answer_mean` summaries for:
+  - `neutral_response`
+  - `trait_response`
+- If response fields are missing, projection raises an error.
 
 Output:
 - `outputs/user_prompts/<trait>/projections/<run_name>.jsonl`
@@ -160,6 +169,7 @@ Important projection fields:
 - `projection_delta_trait_minus_neutral`
 - `projection_text_source_neutral`
 - `projection_text_source_trait`
+- `projection_activation_source`
 
 Those last two fields should be:
 - `neutral_response`
@@ -201,6 +211,7 @@ outputs/user_prompts/<trait>/
   judged/<run_name>.jsonl
   selected/<run_name>.jsonl
   responses/<run_name>.jsonl
+  activations/<run_name>.pt
   projections/<run_name>.jsonl
   plots/<run_name>.png
 ```
@@ -215,7 +226,10 @@ If you want to understand one run end to end, inspect these in order:
 2. `responses/<run_name>.jsonl`
    - What did the assistant actually answer?
 
-3. `projections/<run_name>.jsonl`
+3. `activations/<run_name>.pt`
+   - What generation-time assistant vectors were saved?
+
+4. `projections/<run_name>.jsonl`
    - What scores did those assistant answers get on the axes?
 
 This is usually enough to sanity-check whether:
@@ -228,7 +242,7 @@ This is usually enough to sanity-check whether:
 ### Are we projecting prompts or responses?
 
 With the current `run_user_trait_pipeline.py` path and `--with-projection`, we
-should be projecting **responses**.
+should be projecting **assistant-response activations**.
 
 To verify, inspect:
 
@@ -249,6 +263,12 @@ Expected:
 - `neutral_response`
 - `trait_response`
 
+For new runs, you can also inspect:
+- `projection_activation_source`
+
+Expected:
+- `answer_mean`
+
 ### What are `text-a` and `text-b` in `project_pair_axes.py`?
 
 `project_pair_axes.py` is a generic utility. It projects whatever two text
@@ -258,7 +278,8 @@ That means:
 - if you pass prompts, it projects prompts
 - if you pass responses, it projects responses
 
-The pipeline now passes responses when they exist.
+The pipeline now uses saved response activations for the main projection path.
+This utility remains generic for manual checks and fallback cases.
 
 ### Why are there still prompt scores if we care about assistant behavior?
 
@@ -384,6 +405,7 @@ If you are unsure what a file means, ask:
 Usually:
 - `candidates`, `judged`, `selected` = prompt-side
 - `responses` = assistant-output-side
+- `activations` = saved assistant-side vectors from generation
 - `projections` = assistant-output-side scores on axes
 
 ## If You Only Remember One Thing
@@ -391,6 +413,7 @@ Usually:
 For the experiments we care about most right now:
 
 - `responses/<run_name>.jsonl` tells you what the assistant said
+- `activations/<run_name>.pt` tells you what assistant vectors were saved
 - `projections/<run_name>.jsonl` tells you how those assistant responses scored on the axes
 
 Those are the two files to inspect first.

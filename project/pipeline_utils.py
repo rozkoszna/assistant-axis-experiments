@@ -119,6 +119,7 @@ def build_trait_output_paths(repo_root: Path, trait: str, run_name: str) -> dict
         "judged_file": trait_dir / "judged" / f"{run_name}.jsonl",
         "selected_file": trait_dir / "selected" / f"{run_name}.jsonl",
         "responses_file": trait_dir / "responses" / f"{run_name}.jsonl",
+        "activations_file": trait_dir / "activations" / f"{run_name}.pt",
         "projections_file": trait_dir / "projections" / f"{run_name}.jsonl",
         "neutral_projections_file": trait_dir / "projections" / f"{run_name}__neutral.jsonl",
         "plot_file": trait_dir / "plots" / f"{run_name}.png",

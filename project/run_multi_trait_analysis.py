@@ -1,104 +1,86 @@
 #!/usr/bin/env python3
 """
-Run the user-trait pipeline for multiple traits and generate comparison plots.
+Run the user-trait experiment for several traits and compare them.
 
-Overview
---------
-This script orchestrates a multi-trait experiment by repeatedly running the
-single-trait pipeline (`project/run_user_trait_pipeline.py`) for a list of
-user traits, collecting the resulting projection files, and then generating
-a combined comparison plot across those traits.
+What this script does
+---------------------
+This is the multi-trait wrapper around `project/run_user_trait_pipeline.py`.
 
-Trait structure
----------------
-This script adds a second layer on top of the single-trait pipeline:
-- each inner run still handles exactly one user trait
-- each inner run may still project onto many assistant axes
-- this outer script repeats that process for many user traits
+Use it for experiments like:
+- "Compare confused vs very_confused"
+- "Run several user traits on the same subset of assistant axes"
 
-So the full experiment can contain:
+How it works
+------------
+For each requested user trait, this script:
+- builds a per-trait run name
+- runs the full single-trait pipeline
+- collects the resulting projection file
+
+After all traits finish, it makes one comparison plot from those projection
+files.
+
+One important mental model
+--------------------------
+Each inner run still means:
+- one user trait
+- many selected examples for that trait
+- one or more assistant axes
+
+So this script adds a second layer:
 - many user traits across runs
 - many assistant axes within each run
 
-This is why a per-trait projection file can already contain many axis traits:
+That is why one projection file can already contain many axis rows:
 - the user trait is fixed for that file
-- the assistant axis varies row by row via `projection_trait`
+- the assistant axis changes row by row via `projection_trait`
 
 Neutral side
 ------------
-Each per-trait run also has a matched neutral side for the same selected
-examples. So when the inner pipeline saves:
+Each per-trait run also contains a matched neutral side for the same selected
+examples.
+
+So files like:
 - `projections/<run_name>.jsonl`
 - `projections/<run_name>__neutral.jsonl`
 
-those are still files for one user-trait run, not files that mix many user
-traits together. The neutral companion file is simply the baseline view of
-that same run across the same assistant axes.
-
-For each user trait, the script:
-1. Builds a per-trait run name.
-2. Runs the full single-trait pipeline with shared settings for generation,
-   judging, selection, response generation, and projection.
-3. Verifies that the expected projection JSONL file was created.
-4. Stores that projection file for the final comparison step.
-
-After all traits have been processed, the script:
-5. Runs the appropriate comparison plotting script to visualize differences
-   across traits.
+still belong to one user-trait run. They do not mix traits together. The
+`__neutral` file is just the neutral baseline view of that same run.
 
 Inputs
 ------
-You must provide user traits in exactly one of these ways:
-- `--user-traits`: list of trait names on the command line
-- `--user-traits-file`: JSON file containing a list of trait names
+You provide the user traits either with:
+- `--user-traits`
+- `--user-traits-file`
 
-You must also provide:
-- `--comparison-name`: experiment name used in output filenames
-- `--axes-dir`: directory containing saved `.pt` axis files
+You also provide:
+- `--comparison-name`
+- `--axes-dir`
 
-The script also accepts shared settings for:
-- candidate generation
-- judging
-- selection
-- response generation
-- projection
-- per-trait plotting
-- final comparison plotting
-
-Projection modes
-----------------
-- `all`: project onto all axes in `--axes-dir`
-- `one`: project onto one named axis (requires `--axis-trait`)
-- `subset`: project onto a subset of axes from a JSON file
-  (requires `--axis-traits-file`)
+The rest of the options are shared settings forwarded into the single-trait
+pipeline.
 
 Outputs
 -------
-Per trait:
-- Runs the standard single-trait pipeline and produces the usual per-trait
-  outputs, including:
-  - selected prompt pairs
-  - generated assistant responses
-  - a projection JSONL file
+For each trait, this script produces the usual single-trait outputs, including:
+- responses
+- activations
+- projections
 
-Across all traits:
-- Produces one comparison plot in `--comparison-output-dir`.
+Then it creates one final comparison plot in:
+- `--comparison-output-dir`
 
-Plotting behavior
+Important options
 -----------------
-- If `--with-per-trait-plots` is enabled, each single-trait run also produces
-  its own standard plot.
-- Independently of that, this script always produces a final comparison plot
-  across all requested traits.
+- `--projection-mode` controls whether each trait run uses:
+  - all axes
+  - one axis
+  - a subset of axes
+- `--with-per-trait-plots` also keeps the individual plots from each inner run
 
-Notes
------
-- This script is an orchestration wrapper. It does not directly implement
-  generation, judging, selection, response generation, or projection logic itself.
-- Instead, it launches the single-trait pipeline as a subprocess for each
-  trait and then launches a comparison plotting script.
-- The script assumes the standard output path convention used by
-  `run_user_trait_pipeline.py`.
+This script is only an orchestrator. The actual generation, response capture,
+activation saving, and projection work happens inside
+`project/run_user_trait_pipeline.py`.
 """
 
 #!/usr/bin/env python3

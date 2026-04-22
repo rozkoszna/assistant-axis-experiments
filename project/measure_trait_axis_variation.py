@@ -3,12 +3,10 @@ from __future__ import annotations
 
 import argparse
 import statistics
-import sys
 from pathlib import Path
 from typing import Any
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from io_utils import load_jsonl, print_header, print_kv, write_json, write_jsonl
 from pipeline_utils import DEFAULT_GEN_MODEL, run_cmd
@@ -32,7 +30,6 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--axis", type=str, required=True)
     parser.add_argument("--layer", type=int, default=20)
-    parser.add_argument("--projection-model", type=str, default=DEFAULT_MODEL)
     parser.add_argument(
         "--generation-model",
         type=str,
@@ -56,28 +53,6 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help="Tensor parallel size passed through to generation",
-    )
-
-    parser.add_argument(
-        "--text-keys",
-        nargs="+",
-        default=[
-            "trait_prompt",
-            "neutral_prompt",
-            "trait_response",
-            "response",
-            "text",
-            "prompt",
-            "user_prompt",
-        ],
-        help="Candidate keys to use when extracting text from selected rows.",
-    )
-
-    parser.add_argument(
-        "--hidden-state-indexing",
-        choices=["as_is", "layer_plus_one"],
-        default="as_is",
-        help="Use hidden_states[layer] or hidden_states[layer + 1].",
     )
 
     parser.add_argument("--output-dir", type=str, required=True)
@@ -111,66 +86,6 @@ def load_axis(axis_path: Path, layer: int) -> dict[str, Any]:
     }
 
 
-def load_model(model_name: str):
-    """Load the projection model used to embed assistant responses."""
-    print(f"Loading model: {model_name}", file=sys.stderr)
-
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        dtype=torch.float16,
-        device_map="auto",
-    )
-    model.eval()
-    return model, tokenizer
-
-
-def text_vector(
-    model,
-    tokenizer,
-    text: str,
-    layer: int,
-    hidden_state_indexing: str,
-) -> torch.Tensor:
-    """Embed one text as a mean-pooled hidden-state vector for projection."""
-    device = next(model.parameters()).device
-    inputs = tokenizer(
-        text,
-        return_tensors="pt",
-        truncation=True,
-        max_length=1024,
-        padding=False,
-    ).to(device)
-
-    with torch.no_grad():
-        out = model(**inputs, output_hidden_states=True)
-
-    if hidden_state_indexing == "as_is":
-        hidden_idx = layer
-    elif hidden_state_indexing == "layer_plus_one":
-        hidden_idx = layer + 1
-    else:
-        raise ValueError(f"Unknown hidden_state_indexing: {hidden_state_indexing}")
-
-    if hidden_idx >= len(out.hidden_states):
-        raise ValueError(
-            f"Requested hidden state index {hidden_idx}, "
-            f"but model returned only {len(out.hidden_states)} hidden states"
-        )
-
-    hidden = out.hidden_states[hidden_idx]
-    return hidden.mean(dim=1).squeeze(0).float().cpu()
-
-
-def project(vec: torch.Tensor, axis: torch.Tensor) -> float:
-    """Project a vector onto a normalized axis and return the scalar score."""
-    axis = axis / axis.norm()
-    return torch.dot(vec, axis).item()
-
-
 def summarize(scores: list[float]) -> dict[str, Any]:
     """Compute simple descriptive statistics for a list of projection scores."""
     if not scores:
@@ -191,20 +106,6 @@ def summarize(scores: list[float]) -> dict[str, Any]:
     }
 
 
-def extract_text(row: dict[str, Any], text_keys: list[str]) -> tuple[str, str]:
-    """Pick the first available text field from a row and report which key was used."""
-    for key in text_keys:
-        value = row.get(key)
-        if isinstance(value, str) and value.strip():
-            return value, key
-
-    for key, value in row.items():
-        if isinstance(value, str) and value.strip():
-            return value, key
-
-    raise KeyError(f"Could not find text field in row. Available keys: {list(row.keys())}")
-
-
 def build_pipeline_cmd(args: argparse.Namespace, run_name: str, seed: int) -> list[str]:
     """Build the single-trait pipeline command for one repeated variation run."""
     cmd = [
@@ -222,6 +123,17 @@ def build_pipeline_cmd(args: argparse.Namespace, run_name: str, seed: int) -> li
         str(args.num_candidates),
         "--seed",
         str(seed),
+        "--with-projection",
+        "--axes-dir",
+        str(Path(args.axis).parent),
+        "--projection-mode",
+        "one",
+        "--axis-trait",
+        Path(args.axis).stem,
+        "--projection-layer",
+        str(args.layer),
+        "--projection-model",
+        args.generation_model,
         "--max-tokens",
         "128",
         "--max-model-len",
@@ -236,9 +148,9 @@ def build_pipeline_cmd(args: argparse.Namespace, run_name: str, seed: int) -> li
     return cmd
 
 
-def build_selected_path(trait: str, run_name: str) -> Path:
-    """Return the selected-file path expected from one repeated variation run."""
-    return REPO_ROOT / "outputs" / "user_prompts" / trait / "selected" / f"{run_name}.jsonl"
+def build_projection_path(trait: str, run_name: str) -> Path:
+    """Return the projection-file path expected from one repeated variation run."""
+    return REPO_ROOT / "outputs" / "user_prompts" / trait / "projections" / f"{run_name}.jsonl"
 
 
 def main() -> None:
@@ -248,13 +160,11 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     axis_info = load_axis(Path(args.axis), args.layer)
-    axis = axis_info["axis"]
 
     print_header("Trait Axis Variation")
     print_kv("Trait", args.trait)
     print_kv("Axis", args.axis)
     print_kv("Layer", args.layer)
-    print_kv("Projection model", args.projection_model)
     print_kv("Generation model", args.generation_model)
     print_kv("Runs", args.num_runs)
     print_kv("Candidates per intent", args.num_candidates)
@@ -271,44 +181,40 @@ def main() -> None:
     for i in range(args.num_runs):
         seed = args.base_seed + i
         run_name = f"{run_prefix}_{i:03d}_seed_{seed}"
-        selected_path = build_selected_path(args.trait, run_name)
+        projection_path = build_projection_path(args.trait, run_name)
 
         run_cmd(build_pipeline_cmd(args, run_name, seed), cwd=REPO_ROOT)
 
-        if not selected_path.exists():
-            raise FileNotFoundError(f"Selected file not found: {selected_path}")
+        if not projection_path.exists():
+            raise FileNotFoundError(f"Projection file not found: {projection_path}")
 
         run_records.append(
             {
                 "run_idx": i,
                 "run_name": run_name,
                 "seed": seed,
-                "selected_path": selected_path,
+                "projection_path": projection_path,
             }
         )
-        print(f"{run_name}: selected rows ready at {selected_path}")
+        print(f"{run_name}: projection rows ready at {projection_path}")
 
     print_header("Stage 2: Projection Scoring")
-    model, tokenizer = load_model(args.projection_model)
-
     all_rows: list[dict[str, Any]] = []
     per_run_rows: list[dict[str, Any]] = []
 
     for record in run_records:
-        selected_rows = load_jsonl(record["selected_path"])
+        projection_rows = [
+            row for row in load_jsonl(record["projection_path"])
+            if row.get("projection_trait") == axis_info["trait"]
+        ]
+        if not projection_rows:
+            raise ValueError(
+                f"No projection rows found for axis trait {axis_info['trait']} in {record['projection_path']}"
+            )
         run_scores: list[float] = []
 
-        for selected_idx, row in enumerate(selected_rows):
-            text, text_key = extract_text(row, args.text_keys)
-
-            vec = text_vector(
-                model=model,
-                tokenizer=tokenizer,
-                text=text,
-                layer=args.layer,
-                hidden_state_indexing=args.hidden_state_indexing,
-            )
-            score = project(vec, axis)
+        for selected_idx, row in enumerate(projection_rows):
+            score = float(row["projection_score_trait"])
             run_scores.append(score)
 
             all_rows.append(
@@ -321,12 +227,13 @@ def main() -> None:
                     "axis_path": args.axis,
                     "axis_trait": axis_info["trait"],
                     "activation_position": axis_info["activation_position"],
-                    "projection_model": args.projection_model,
+                    "projection_model": args.generation_model,
                     "layer": args.layer,
-                    "text_key_used": text_key,
-                    "text": text,
+                    "projection_activation_source": row.get("projection_activation_source"),
+                    "neutral_response": row.get("neutral_response"),
+                    "trait_response": row.get("trait_response"),
                     "projection_score": score,
-                    "selected_row": row,
+                    "projection_row": row,
                 }
             )
 
@@ -337,7 +244,7 @@ def main() -> None:
                 "run_name": record["run_name"],
                 "run_idx": record["run_idx"],
                 "seed": record["seed"],
-                "num_selected": len(selected_rows),
+                "num_selected": len(projection_rows),
                 "axis_path": args.axis,
                 "axis_trait": axis_info["trait"],
             }
@@ -356,13 +263,12 @@ def main() -> None:
             "axis_path": args.axis,
             "axis_trait": axis_info["trait"],
             "activation_position": axis_info["activation_position"],
-            "projection_model": args.projection_model,
+            "projection_model": args.generation_model,
             "layer": args.layer,
             "num_runs_requested": args.num_runs,
             "num_runs_completed": len(per_run_rows),
             "run_prefix": run_prefix,
             "base_seed": args.base_seed,
-            "hidden_state_indexing": args.hidden_state_indexing,
         }
     )
 
