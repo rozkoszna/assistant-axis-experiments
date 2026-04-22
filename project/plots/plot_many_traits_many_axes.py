@@ -68,6 +68,20 @@ def parse_args() -> argparse.Namespace:
         help="Optional explicit list of axes to keep.",
     )
     parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=None,
+        help=(
+            "Optional batch size for variance estimation. When set, scores are first averaged "
+            "within contiguous example batches and std is computed across those batch means."
+        ),
+    )
+    parser.add_argument(
+        "--drop-incomplete-batch",
+        action="store_true",
+        help="When batching is enabled, drop the final partial batch instead of keeping it.",
+    )
+    parser.add_argument(
         "--title",
         type=str,
         default=None,
@@ -109,6 +123,60 @@ def collect_axis_values(rows: list[dict[str, Any]], value_key: str) -> dict[str,
     return by_axis
 
 
+def make_example_key(row: dict[str, Any]) -> tuple[Any, ...]:
+    """Build a stable per-example key so repeated axis rows can be regrouped into original examples."""
+    return (
+        row.get("intent_index"),
+        row.get("candidate_index"),
+        row.get("intent"),
+        row.get("neutral_prompt"),
+        row.get("trait_prompt"),
+    )
+
+
+def collect_batched_axis_values(
+    rows: list[dict[str, Any]],
+    value_key: str,
+    *,
+    batch_size: int,
+    drop_incomplete_batch: bool,
+) -> dict[str, list[float]]:
+    """Collect per-axis batch means instead of per-example values."""
+    if batch_size <= 0:
+        raise ValueError("--batch-size must be positive")
+
+    example_order: list[tuple[Any, ...]] = []
+    example_seen: set[tuple[Any, ...]] = set()
+    by_axis_example: dict[str, dict[tuple[Any, ...], float]] = {}
+
+    for row in rows:
+        axis_trait = row.get("projection_trait")
+        if axis_trait is None:
+            continue
+        axis_trait = str(axis_trait)
+        example_key = make_example_key(row)
+        if example_key not in example_seen:
+            example_seen.add(example_key)
+            example_order.append(example_key)
+        by_axis_example.setdefault(axis_trait, {})[example_key] = float(row[value_key])
+
+    batched: dict[str, list[float]] = {}
+    for axis_trait, example_scores in by_axis_example.items():
+        ordered_values = [example_scores[key] for key in example_order if key in example_scores]
+        if not ordered_values:
+            continue
+
+        batch_means: list[float] = []
+        for start in range(0, len(ordered_values), batch_size):
+            batch = ordered_values[start : start + batch_size]
+            if len(batch) < batch_size and drop_incomplete_batch:
+                continue
+            batch_means.append(sum(batch) / len(batch))
+        batched[axis_trait] = batch_means
+
+    return batched
+
+
 def axis_intersection(series: list[dict[str, list[float]]]) -> list[str]:
     """Return sorted axes that are present in every provided series."""
     if not series:
@@ -136,11 +204,29 @@ def main() -> None:
         if not rows:
             raise ValueError(f"No projection rows found in {input_path}")
 
-        trait_by_axis = collect_axis_values(rows, "projection_score_trait")
+        if args.batch_size is not None:
+            trait_by_axis = collect_batched_axis_values(
+                rows,
+                "projection_score_trait",
+                batch_size=args.batch_size,
+                drop_incomplete_batch=args.drop_incomplete_batch,
+            )
+        else:
+            trait_by_axis = collect_axis_values(rows, "projection_score_trait")
         trait_series.append((label, trait_by_axis))
 
         if args.include_neutral:
-            neutral_inputs.append(collect_axis_values(rows, "projection_score_neutral"))
+            if args.batch_size is not None:
+                neutral_inputs.append(
+                    collect_batched_axis_values(
+                        rows,
+                        "projection_score_neutral",
+                        batch_size=args.batch_size,
+                        drop_incomplete_batch=args.drop_incomplete_batch,
+                    )
+                )
+            else:
+                neutral_inputs.append(collect_axis_values(rows, "projection_score_neutral"))
 
     all_series = [series for _, series in trait_series]
     merged_neutral: dict[str, list[float]] = {}
@@ -177,14 +263,30 @@ def main() -> None:
         neutral_summary: dict[str, dict[str, float | int]] = {}
         for axis_trait in axis_traits:
             neutral_summary[axis_trait] = compute_stats(merged_neutral[axis_trait])
-            summary_rows.append({"run_label": args.neutral_label, "axis_trait": axis_trait, **neutral_summary[axis_trait]})
+            summary_rows.append(
+                {
+                    "run_label": args.neutral_label,
+                    "axis_trait": axis_trait,
+                    "batched": args.batch_size is not None,
+                    "batch_size": args.batch_size,
+                    **neutral_summary[axis_trait],
+                }
+            )
         plot_series.append((args.neutral_label, neutral_summary))
 
     for label, series in trait_series:
         series_summary: dict[str, dict[str, float | int]] = {}
         for axis_trait in axis_traits:
             series_summary[axis_trait] = compute_stats(series[axis_trait])
-            summary_rows.append({"run_label": label, "axis_trait": axis_trait, **series_summary[axis_trait]})
+            summary_rows.append(
+                {
+                    "run_label": label,
+                    "axis_trait": axis_trait,
+                    "batched": args.batch_size is not None,
+                    "batch_size": args.batch_size,
+                    **series_summary[axis_trait],
+                }
+            )
         plot_series.append((label, series_summary))
 
     num_axes = len(axis_traits)
@@ -215,7 +317,10 @@ def main() -> None:
 
     plt.axhline(0.0, color="#666666", linewidth=1.0, alpha=0.7)
     plt.xticks(x, axis_traits, rotation=35, ha="right")
-    plt.ylabel("Mean projection score")
+    ylabel = "Mean projection score"
+    if args.batch_size is not None:
+        ylabel += f" (batch means, batch_size={args.batch_size})"
+    plt.ylabel(ylabel)
     plt.xlabel("Projection axis")
     plt.title(args.title or "Many traits across many axes")
     plt.legend()
@@ -230,7 +335,7 @@ def main() -> None:
         write_csv(
             summary_rows,
             Path(args.csv_output),
-            fieldnames=["run_label", "axis_trait", "count", "mean", "std", "min", "max"],
+            fieldnames=["run_label", "axis_trait", "batched", "batch_size", "count", "mean", "std", "min", "max"],
         )
 
     print(f"Saved plot to {output_path}")
