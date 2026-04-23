@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import random
 import sys
 from pathlib import Path
 from typing import Any
@@ -70,6 +71,22 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--output-csv", type=str, default=None)
     parser.add_argument("--per-topic-csv", type=str, default=None)
+    parser.add_argument(
+        "--minibatch-size",
+        type=int,
+        default=None,
+        help=(
+            "Optional number of examples to sample inside each topic for bootstrap mini-batch "
+            "variance estimates, e.g. 2."
+        ),
+    )
+    parser.add_argument(
+        "--bootstrap-samples",
+        type=int,
+        default=1000,
+        help="Number of bootstrap samples when --minibatch-size is set.",
+    )
+    parser.add_argument("--seed", type=int, default=0, help="Random seed for bootstrap mini-batching.")
     parser.add_argument("--output-json", type=str, default=None)
     return parser.parse_args()
 
@@ -115,6 +132,10 @@ def summarize_axis_topics(
     condition: str,
     axis: str,
     topics: dict[str, list[float]],
+    *,
+    minibatch_size: int | None,
+    bootstrap_samples: int,
+    rng: random.Random,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Return one summary row and per-topic rows for one condition/axis."""
     topic_rows: list[dict[str, Any]] = []
@@ -164,12 +185,101 @@ def summarize_axis_topics(
         "pooled_within_topic_std": sample_std(residuals),
         "pooled_within_topic_variance": sample_variance(residuals),
     }
+
+    if minibatch_size is not None:
+        bootstrap_stats = bootstrap_minibatch_variance(
+            topics,
+            minibatch_size=minibatch_size,
+            bootstrap_samples=bootstrap_samples,
+            rng=rng,
+        )
+        summary.update(bootstrap_stats)
+
     return summary, topic_rows
+
+
+def sample_minibatch_mean(values: list[float], *, minibatch_size: int, rng: random.Random) -> float:
+    """Sample a mini-batch mean from one topic."""
+    if minibatch_size <= 0:
+        raise ValueError("--minibatch-size must be positive")
+    if minibatch_size <= len(values):
+        sample = rng.sample(values, minibatch_size)
+    else:
+        sample = [rng.choice(values) for _ in range(minibatch_size)]
+    return mean(sample)
+
+
+def bootstrap_minibatch_variance(
+    topics: dict[str, list[float]],
+    *,
+    minibatch_size: int,
+    bootstrap_samples: int,
+    rng: random.Random,
+) -> dict[str, float | int]:
+    """
+    Estimate variance after smoothing examples with within-topic mini-batches.
+
+    For each bootstrap iteration:
+    - sample `minibatch_size` values inside each topic
+    - compute one mini-batch mean per topic
+    - compute between-topic std across those topic mini-batch means
+    - sample two independent mini-batch means inside each topic to estimate
+      within-topic mini-batch variation
+    """
+    if bootstrap_samples <= 0:
+        raise ValueError("--bootstrap-samples must be positive")
+
+    topic_values = {topic: values for topic, values in topics.items() if values}
+    if not topic_values:
+        return {
+            "minibatch_size": minibatch_size,
+            "bootstrap_samples": bootstrap_samples,
+            "bootstrap_between_topic_std": 0.0,
+            "bootstrap_between_topic_variance": 0.0,
+            "bootstrap_within_topic_minibatch_std": 0.0,
+            "bootstrap_within_topic_minibatch_variance": 0.0,
+            "bootstrap_overall_minibatch_mean_std": 0.0,
+            "bootstrap_overall_minibatch_mean_variance": 0.0,
+        }
+
+    between_stds: list[float] = []
+    within_diffs: list[float] = []
+    overall_batch_means: list[float] = []
+
+    for _ in range(bootstrap_samples):
+        topic_batch_means = [
+            sample_minibatch_mean(values, minibatch_size=minibatch_size, rng=rng)
+            for values in topic_values.values()
+        ]
+        between_stds.append(sample_std(topic_batch_means))
+        overall_batch_means.append(mean(topic_batch_means))
+
+        for values in topic_values.values():
+            first = sample_minibatch_mean(values, minibatch_size=minibatch_size, rng=rng)
+            second = sample_minibatch_mean(values, minibatch_size=minibatch_size, rng=rng)
+            within_diffs.append(first - second)
+
+    # Var(X-Y) = 2 Var(X) for independent batches from the same topic.
+    within_minibatch_variance = sample_variance(within_diffs) / 2.0 if within_diffs else 0.0
+    between_variance = mean([value**2 for value in between_stds]) if between_stds else 0.0
+    overall_variance = sample_variance(overall_batch_means)
+
+    return {
+        "minibatch_size": minibatch_size,
+        "bootstrap_samples": bootstrap_samples,
+        "bootstrap_between_topic_std": math.sqrt(between_variance),
+        "bootstrap_between_topic_variance": between_variance,
+        "bootstrap_within_topic_minibatch_std": math.sqrt(within_minibatch_variance),
+        "bootstrap_within_topic_minibatch_variance": within_minibatch_variance,
+        "bootstrap_overall_minibatch_mean_std": math.sqrt(overall_variance),
+        "bootstrap_overall_minibatch_mean_variance": overall_variance,
+    }
 
 
 def main() -> None:
     """Compute topic variance decomposition and write optional outputs."""
     args = parse_args()
+    rng = random.Random(args.seed)
 
     if len(args.trait_inputs) != len(args.trait_labels):
         raise ValueError("--trait-inputs and --trait-labels must have the same length")
@@ -222,7 +332,14 @@ def main() -> None:
         for axis in axes:
             if axis not in axis_topics:
                 continue
-            summary, topic_rows = summarize_axis_topics(condition, axis, axis_topics[axis])
+            summary, topic_rows = summarize_axis_topics(
+                condition,
+                axis,
+                axis_topics[axis],
+                minibatch_size=args.minibatch_size,
+                bootstrap_samples=args.bootstrap_samples,
+                rng=rng,
+            )
             summary_rows.append(summary)
             per_topic_rows.extend(topic_rows)
 
@@ -234,28 +351,50 @@ def main() -> None:
             f"n={row['count']:<3} topics={row['num_topics']:<2} "
             f"mean={row['overall_mean']:.4f} overall_std={row['overall_std']:.4f} "
             f"between_topic_std={row['between_topic_std']:.4f} "
-            f"pooled_within_topic_std={row['pooled_within_topic_std']:.4f}"
+            f"pooled_within_topic_std={row['pooled_within_topic_std']:.4f}",
+            end="",
         )
+        if args.minibatch_size is not None:
+            print(
+                f" minibatch_between_std={row['bootstrap_between_topic_std']:.4f} "
+                f"minibatch_within_std={row['bootstrap_within_topic_minibatch_std']:.4f}"
+            )
+        else:
+            print()
 
     if args.output_csv:
+        summary_fieldnames = [
+            "condition",
+            "axis",
+            "num_topics",
+            "count",
+            "overall_mean",
+            "overall_std",
+            "overall_variance",
+            "between_topic_std",
+            "between_topic_variance",
+            "mean_within_topic_std",
+            "mean_within_topic_variance",
+            "pooled_within_topic_std",
+            "pooled_within_topic_variance",
+        ]
+        if args.minibatch_size is not None:
+            summary_fieldnames.extend(
+                [
+                    "minibatch_size",
+                    "bootstrap_samples",
+                    "bootstrap_between_topic_std",
+                    "bootstrap_between_topic_variance",
+                    "bootstrap_within_topic_minibatch_std",
+                    "bootstrap_within_topic_minibatch_variance",
+                    "bootstrap_overall_minibatch_mean_std",
+                    "bootstrap_overall_minibatch_mean_variance",
+                ]
+            )
         write_csv(
             summary_rows,
             Path(args.output_csv),
-            fieldnames=[
-                "condition",
-                "axis",
-                "num_topics",
-                "count",
-                "overall_mean",
-                "overall_std",
-                "overall_variance",
-                "between_topic_std",
-                "between_topic_variance",
-                "mean_within_topic_std",
-                "mean_within_topic_variance",
-                "pooled_within_topic_std",
-                "pooled_within_topic_variance",
-            ],
+            fieldnames=summary_fieldnames,
         )
         print(f"\nSaved summary CSV to {args.output_csv}")
 
