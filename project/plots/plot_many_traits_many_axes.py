@@ -82,6 +82,26 @@ def parse_args() -> argparse.Namespace:
         help="When batching is enabled, drop the final partial batch instead of keeping it.",
     )
     parser.add_argument(
+        "--group-by-field",
+        type=str,
+        default=None,
+        help=(
+            "Optional field name used to form groups before computing variance, for example "
+            "`intent_index`. For each axis, the script averages within each group and computes "
+            "std across group means."
+        ),
+    )
+    parser.add_argument(
+        "--balanced-batches-by",
+        type=str,
+        default=None,
+        help=(
+            "Optional field name used to form balanced batches, for example `intent_index`. "
+            "The script groups rows by this field and then builds batch k by taking the k-th "
+            "example from each group. Variance is then computed across these balanced batch means."
+        ),
+    )
+    parser.add_argument(
         "--title",
         type=str,
         default=None,
@@ -177,6 +197,84 @@ def collect_batched_axis_values(
     return batched
 
 
+def collect_grouped_axis_values(
+    rows: list[dict[str, Any]],
+    value_key: str,
+    *,
+    group_by_field: str,
+) -> dict[str, list[float]]:
+    """Collect per-axis group means using a semantic grouping field such as intent_index."""
+    grouped: dict[str, dict[str, list[float]]] = {}
+
+    for row in rows:
+        axis_trait = row.get("projection_trait")
+        if axis_trait is None:
+            continue
+        group_value = row.get(group_by_field)
+        if group_value is None:
+            continue
+
+        axis_trait = str(axis_trait)
+        group_key = str(group_value)
+        grouped.setdefault(axis_trait, {}).setdefault(group_key, []).append(float(row[value_key]))
+
+    result: dict[str, list[float]] = {}
+    for axis_trait, groups in grouped.items():
+        result[axis_trait] = [sum(values) / len(values) for _, values in sorted(groups.items())]
+
+    return result
+
+
+def collect_balanced_batched_axis_values(
+    rows: list[dict[str, Any]],
+    value_key: str,
+    *,
+    group_by_field: str,
+) -> dict[str, list[float]]:
+    """Collect per-axis balanced batch means with one example per group in each batch."""
+    by_axis_group: dict[str, dict[str, list[tuple[tuple[Any, ...], float]]]] = {}
+
+    for row in rows:
+        axis_trait = row.get("projection_trait")
+        if axis_trait is None:
+            continue
+        group_value = row.get(group_by_field)
+        if group_value is None:
+            continue
+
+        axis_trait = str(axis_trait)
+        group_key = str(group_value)
+        example_key = make_example_key(row)
+        score = float(row[value_key])
+        by_axis_group.setdefault(axis_trait, {}).setdefault(group_key, []).append((example_key, score))
+
+    result: dict[str, list[float]] = {}
+
+    for axis_trait, groups in by_axis_group.items():
+        ordered_groups: list[list[float]] = []
+        for _, entries in sorted(groups.items()):
+            deduped: dict[tuple[Any, ...], float] = {}
+            for example_key, score in entries:
+                deduped[example_key] = score
+            ordered_scores = [score for _, score in sorted(deduped.items(), key=lambda item: item[0])]
+            ordered_groups.append(ordered_scores)
+
+        if not ordered_groups:
+            continue
+
+        min_len = min(len(group_scores) for group_scores in ordered_groups)
+        if min_len == 0:
+            continue
+
+        batch_means: list[float] = []
+        for batch_idx in range(min_len):
+            batch_values = [group_scores[batch_idx] for group_scores in ordered_groups]
+            batch_means.append(sum(batch_values) / len(batch_values))
+        result[axis_trait] = batch_means
+
+    return result
+
+
 def axis_intersection(series: list[dict[str, list[float]]]) -> list[str]:
     """Return sorted axes that are present in every provided series."""
     if not series:
@@ -204,7 +302,19 @@ def main() -> None:
         if not rows:
             raise ValueError(f"No projection rows found in {input_path}")
 
-        if args.batch_size is not None:
+        if args.balanced_batches_by is not None:
+            trait_by_axis = collect_balanced_batched_axis_values(
+                rows,
+                "projection_score_trait",
+                group_by_field=args.balanced_batches_by,
+            )
+        elif args.group_by_field is not None:
+            trait_by_axis = collect_grouped_axis_values(
+                rows,
+                "projection_score_trait",
+                group_by_field=args.group_by_field,
+            )
+        elif args.batch_size is not None:
             trait_by_axis = collect_batched_axis_values(
                 rows,
                 "projection_score_trait",
@@ -216,7 +326,23 @@ def main() -> None:
         trait_series.append((label, trait_by_axis))
 
         if args.include_neutral:
-            if args.batch_size is not None:
+            if args.balanced_batches_by is not None:
+                neutral_inputs.append(
+                    collect_balanced_batched_axis_values(
+                        rows,
+                        "projection_score_neutral",
+                        group_by_field=args.balanced_batches_by,
+                    )
+                )
+            elif args.group_by_field is not None:
+                neutral_inputs.append(
+                    collect_grouped_axis_values(
+                        rows,
+                        "projection_score_neutral",
+                        group_by_field=args.group_by_field,
+                    )
+                )
+            elif args.batch_size is not None:
                 neutral_inputs.append(
                     collect_batched_axis_values(
                         rows,
@@ -267,6 +393,8 @@ def main() -> None:
                 {
                     "run_label": args.neutral_label,
                     "axis_trait": axis_trait,
+                    "balanced_batched_by": args.balanced_batches_by,
+                    "grouped_by": args.group_by_field,
                     "batched": args.batch_size is not None,
                     "batch_size": args.batch_size,
                     **neutral_summary[axis_trait],
@@ -282,6 +410,8 @@ def main() -> None:
                 {
                     "run_label": label,
                     "axis_trait": axis_trait,
+                    "balanced_batched_by": args.balanced_batches_by,
+                    "grouped_by": args.group_by_field,
                     "batched": args.batch_size is not None,
                     "batch_size": args.batch_size,
                     **series_summary[axis_trait],
@@ -318,7 +448,11 @@ def main() -> None:
     plt.axhline(0.0, color="#666666", linewidth=1.0, alpha=0.7)
     plt.xticks(x, axis_traits, rotation=35, ha="right")
     ylabel = "Mean projection score"
-    if args.batch_size is not None:
+    if args.balanced_batches_by is not None:
+        ylabel += f" (balanced batches by {args.balanced_batches_by})"
+    elif args.group_by_field is not None:
+        ylabel += f" (group means by {args.group_by_field})"
+    elif args.batch_size is not None:
         ylabel += f" (batch means, batch_size={args.batch_size})"
     plt.ylabel(ylabel)
     plt.xlabel("Projection axis")
@@ -335,7 +469,19 @@ def main() -> None:
         write_csv(
             summary_rows,
             Path(args.csv_output),
-            fieldnames=["run_label", "axis_trait", "batched", "batch_size", "count", "mean", "std", "min", "max"],
+            fieldnames=[
+                "run_label",
+                "axis_trait",
+                "balanced_batched_by",
+                "grouped_by",
+                "batched",
+                "batch_size",
+                "count",
+                "mean",
+                "std",
+                "min",
+                "max",
+            ],
         )
 
     print(f"Saved plot to {output_path}")
