@@ -57,9 +57,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-model-len", type=int, default=2048)
     parser.add_argument("--tensor-parallel-size", type=int, default=None)
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.9)
-    parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=0.2,
+        help="Sampling temperature for response generation; set to 0.0 for deterministic outputs",
+    )
     parser.add_argument("--max-tokens", type=int, default=256)
     parser.add_argument("--top-p", type=float, default=1.0)
+    parser.add_argument(
+        "--save-every",
+        type=int,
+        default=10,
+        help="In activation mode, save checkpoints every N processed rows (use 1 for every row)",
+    )
     return parser.parse_args()
 
 
@@ -169,6 +180,8 @@ def main() -> None:
     selected_file = Path(args.selected_file)
     output_file = Path(args.output_file)
     activations_file = Path(args.activations_file) if args.activations_file else None
+    if args.save_every < 1:
+        raise ValueError("--save-every must be >= 1")
 
     rows = load_selected(selected_file)
     if not rows:
@@ -264,16 +277,17 @@ def main() -> None:
                 }
             )
 
-            save_rows(output_file, enriched_rows)
-            save_activation_payload(
-                activations_file,
-                {
-                    "activation_position": "answer_mean",
-                    "model_name": args.model,
-                    "rows": activation_rows,
-                },
-            )
-            print(f"[{idx}/{total_rows}] checkpoint saved.", flush=True)
+            if idx % args.save_every == 0 or idx == total_rows:
+                save_rows(output_file, enriched_rows)
+                save_activation_payload(
+                    activations_file,
+                    {
+                        "activation_position": "answer_mean",
+                        "model_name": args.model,
+                        "rows": activation_rows,
+                    },
+                )
+                print(f"[{idx}/{total_rows}] checkpoint saved.", flush=True)
     finally:
         pm.close()
 

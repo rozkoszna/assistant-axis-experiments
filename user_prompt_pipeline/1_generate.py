@@ -22,6 +22,7 @@ Example:
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import logging
 import os
@@ -122,8 +123,32 @@ def build_neutral_user_prompt(intent: str) -> str:
     )
 
 
-def build_trait_user_prompt(intent: str, trait: str, explanation: Optional[str]) -> str:
+def build_trait_user_prompt(
+    intent: str,
+    trait: str,
+    explanation: Optional[str],
+    neutral_reference: Optional[str] = None,
+    stronger_contrast: bool = False,
+) -> str:
     style_block = build_style_block(trait, explanation)
+    contrast_block = ""
+    if neutral_reference:
+        contrast_block = (
+            "Reference neutral USER prompt (preserve meaning, but do not copy wording):\n"
+            f"{neutral_reference}\n\n"
+            "Contrast requirements:\n"
+            "- Keep the same underlying request and constraints.\n"
+            "- Change wording and sentence rhythm clearly.\n"
+            "- Express the requested trait through style/tone.\n"
+            "- Do not copy the opening phrase from the reference prompt.\n\n"
+        )
+    if stronger_contrast:
+        contrast_block += (
+            "Stronger contrast requirement:\n"
+            "- Make the style difference obvious at first glance while preserving meaning.\n"
+            "- Avoid reusing distinctive phrases from the reference prompt.\n\n"
+        )
+
     return (
         "Generate exactly one USER prompt.\n\n"
         "Requirements:\n"
@@ -134,6 +159,7 @@ def build_trait_user_prompt(intent: str, trait: str, explanation: Optional[str])
         "- The difference from a neutral version should be mostly style, not meaning.\n"
         "- Keep it natural and plausible as something a real user would type.\n\n"
         f"Seed intent:\n{intent}\n\n"
+        f"{contrast_block}"
         f"Style:\n{style_block}\n"
     )
 
@@ -155,6 +181,16 @@ def sanitize_output(text: str) -> str:
         return lines[1]
 
     return lines[0]
+
+
+def lexical_similarity(a: str, b: str) -> float:
+    left = " ".join(a.lower().split())
+    right = " ".join(b.lower().split())
+    if not left and not right:
+        return 1.0
+    if not left or not right:
+        return 0.0
+    return difflib.SequenceMatcher(a=left, b=right).ratio()
 
 
 class PromptPairGenerator:
@@ -191,22 +227,28 @@ class PromptPairGenerator:
         )
         self.generator.load()
 
-    def generate_one(self, user_prompt: str) -> str:
+    def generate_many(self, user_prompts: list[str]) -> list[str]:
         if self.generator is None:
             raise RuntimeError("Generator is not loaded")
 
-        conversation = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt},
+        if not user_prompts:
+            return []
+
+        conversations = [
+            [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ]
+            for user_prompt in user_prompts
         ]
+        outputs = self.generator.generate_batch(conversations)
+        if len(outputs) != len(user_prompts):
+            raise RuntimeError(f"Expected {len(user_prompts)} outputs, got {len(outputs)}")
+        return [sanitize_output(str(text)) for text in outputs]
 
-        outputs = self.generator.generate_batch([conversation])
-
-        if not outputs:
-            return ""
-
-        text = str(outputs[0])
-        return sanitize_output(text)
+    def generate_one(self, user_prompt: str) -> str:
+        outputs = self.generate_many([user_prompt])
+        return outputs[0] if outputs else ""
 
 
 def compute_tensor_parallel_size(user_value: Optional[int]) -> int:
@@ -228,21 +270,86 @@ def iter_candidate_pairs(
     explanation: Optional[str],
     num_candidates: int,
     shuffle_intents: bool,
+    generation_batch_size: int,
 ) -> Iterable[CandidatePair]:
+    if generation_batch_size < 1:
+        raise ValueError("generation_batch_size must be >= 1")
+
     intent_list = list(intents)
     if shuffle_intents:
         random.shuffle(intent_list)
 
+    neutral_jobs: list[tuple[IntentRecord, int, str]] = []
     for item in intent_list:
         for candidate_index in range(num_candidates):
-            logger.info(
-                f"Generating intent {item.intent_index}, candidate {candidate_index}"
-            )
             neutral_instruction = build_neutral_user_prompt(item.intent)
-            trait_instruction = build_trait_user_prompt(item.intent, trait, explanation)
+            neutral_jobs.append((item, candidate_index, neutral_instruction))
 
-            neutral_prompt = generator.generate_one(neutral_instruction)
-            trait_prompt = generator.generate_one(trait_instruction)
+    total_pairs = len(neutral_jobs)
+    logger.info("Generating %s neutral prompts in batches of %s", total_pairs, generation_batch_size)
+
+    neutral_by_key: dict[tuple[int, int], str] = {}
+    for start in range(0, total_pairs, generation_batch_size):
+        chunk = neutral_jobs[start : start + generation_batch_size]
+        instructions = [instruction for _, _, instruction in chunk]
+        responses = generator.generate_many(instructions)
+        logger.info("Generated neutral prompts %s/%s", min(start + len(chunk), total_pairs), total_pairs)
+        for (item, candidate_index, _), response in zip(chunk, responses):
+            neutral_by_key[(item.intent_index, candidate_index)] = response
+
+    trait_jobs: list[tuple[IntentRecord, int, str]] = []
+    for item in intent_list:
+        for candidate_index in range(num_candidates):
+            key = (item.intent_index, candidate_index)
+            neutral_reference = neutral_by_key.get(key, "")
+            trait_instruction = build_trait_user_prompt(
+                item.intent,
+                trait,
+                explanation,
+                neutral_reference=neutral_reference,
+            )
+            trait_jobs.append((item, candidate_index, trait_instruction))
+
+    logger.info("Generating %s trait prompts in batches of %s", total_pairs, generation_batch_size)
+    trait_by_key: dict[tuple[int, int], str] = {}
+    for start in range(0, total_pairs, generation_batch_size):
+        chunk = trait_jobs[start : start + generation_batch_size]
+        instructions = [instruction for _, _, instruction in chunk]
+        responses = generator.generate_many(instructions)
+        logger.info("Generated trait prompts %s/%s", min(start + len(chunk), total_pairs), total_pairs)
+        for (item, candidate_index, _), response in zip(chunk, responses):
+            trait_by_key[(item.intent_index, candidate_index)] = response
+
+    similar_pairs: list[tuple[IntentRecord, int, str]] = []
+    for item in intent_list:
+        for candidate_index in range(num_candidates):
+            key = (item.intent_index, candidate_index)
+            neutral_prompt = neutral_by_key.get(key, "")
+            trait_prompt = trait_by_key.get(key, "")
+            if lexical_similarity(neutral_prompt, trait_prompt) >= 0.9:
+                retry_instruction = build_trait_user_prompt(
+                    item.intent,
+                    trait,
+                    explanation,
+                    neutral_reference=neutral_prompt,
+                    stronger_contrast=True,
+                )
+                similar_pairs.append((item, candidate_index, retry_instruction))
+
+    if similar_pairs:
+        logger.info("Retrying %s overly-similar trait prompts for stronger contrast", len(similar_pairs))
+        for start in range(0, len(similar_pairs), generation_batch_size):
+            chunk = similar_pairs[start : start + generation_batch_size]
+            instructions = [instruction for _, _, instruction in chunk]
+            responses = generator.generate_many(instructions)
+            for (item, candidate_index, _), response in zip(chunk, responses):
+                trait_by_key[(item.intent_index, candidate_index)] = response
+
+    for item in intent_list:
+        for candidate_index in range(num_candidates):
+            key = (item.intent_index, candidate_index)
+            neutral_prompt = neutral_by_key.get(key, "")
+            trait_prompt = trait_by_key.get(key, "")
 
             if not neutral_prompt:
                 logger.warning(
@@ -312,6 +419,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--temperature", type=float, default=0.8)
     parser.add_argument("--max_tokens", type=int, default=128)
     parser.add_argument("--top_p", type=float, default=0.95)
+    parser.add_argument(
+        "--generation_batch_size",
+        type=int,
+        default=256,
+        help="Number of prompt-generation requests to submit per vLLM batch call",
+    )
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--shuffle_intents", action="store_true")
     return parser.parse_args()
@@ -354,6 +467,7 @@ def main() -> None:
         explanation=args.explanation,
         num_candidates=args.num_candidates,
         shuffle_intents=args.shuffle_intents,
+        generation_batch_size=args.generation_batch_size,
     )
     count = save_candidates(output_file, rows)
 

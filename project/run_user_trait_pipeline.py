@@ -176,6 +176,8 @@ def build_generate_cmd(args: argparse.Namespace, candidates_file: Path) -> list[
         candidates_file.name,
         "--num_candidates",
         str(args.num_candidates),
+        "--generation_batch_size",
+        str(args.generation_batch_size),
         "--temperature",
         str(args.temperature),
         "--max_tokens",
@@ -302,6 +304,8 @@ def build_response_cmd(
         str(args.max_tokens),
         "--top-p",
         str(args.top_p),
+        "--temperature",
+        str(args.response_temperature),
     ]
 
     if args.tensor_parallel_size is not None:
