@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+"""
+Generate assistant responses for selected neutral/trait user prompt pairs.
+
+This stage supports two modes:
+- fast response-only mode (vLLM batch generation)
+- response + activation mode (per-example generation with layer hooks)
+"""
 from __future__ import annotations
 
 import argparse
@@ -17,6 +24,7 @@ from assistant_axis.internals import ProbingModel  # noqa: E402
 
 
 def load_selected(path: Path) -> list[dict[str, Any]]:
+    """Load selected prompt-pair rows from JSONL."""
     rows: list[dict[str, Any]] = []
     with jsonlines.open(path, "r") as reader:
         for row in reader:
@@ -25,6 +33,7 @@ def load_selected(path: Path) -> list[dict[str, Any]]:
 
 
 def save_rows(path: Path, rows: list[dict[str, Any]]) -> None:
+    """Save response rows to JSONL."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with jsonlines.open(path, "w") as writer:
         for row in rows:
@@ -32,11 +41,13 @@ def save_rows(path: Path, rows: list[dict[str, Any]]) -> None:
 
 
 def save_activation_payload(path: Path, payload: dict[str, Any]) -> None:
+    """Persist activation payload with torch serialization."""
     path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(payload, path)
 
 
 def compute_tensor_parallel_size(user_value: int | None) -> int:
+    """Resolve tensor parallel size from flag, env, or detected GPU count."""
     if user_value is not None:
         return user_value
 
@@ -49,6 +60,7 @@ def compute_tensor_parallel_size(user_value: int | None) -> int:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for response generation stage."""
     parser = argparse.ArgumentParser(description="Generate assistant responses for selected user prompt pairs.")
     parser.add_argument("--selected-file", type=str, required=True)
     parser.add_argument("--output-file", type=str, required=True)
@@ -176,6 +188,7 @@ def generate_response_with_answer_mean(
 
 
 def main() -> None:
+    """Run response generation and optional activation capture."""
     args = parse_args()
     selected_file = Path(args.selected_file)
     output_file = Path(args.output_file)

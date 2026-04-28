@@ -55,6 +55,7 @@ class JudgedCandidatePair:
 
 
 def load_judged(path: Path) -> list[JudgedCandidatePair]:
+    """Load judged candidate rows from JSONL."""
     rows: list[JudgedCandidatePair] = []
     with jsonlines.open(path, "r") as reader:
         for row in reader:
@@ -63,6 +64,7 @@ def load_judged(path: Path) -> list[JudgedCandidatePair]:
 
 
 def normalize_text(text: str) -> str:
+    """Normalize text for deduplication signatures."""
     text = text.lower().strip()
     text = re.sub(r"\s+", " ", text)
     text = re.sub(r"[\"'`]+", "", text)
@@ -70,6 +72,7 @@ def normalize_text(text: str) -> str:
 
 
 def pair_signature(row: JudgedCandidatePair) -> tuple[str, str]:
+    """Build deduplication signature for one prompt pair."""
     return (
         normalize_text(row.neutral_prompt),
         normalize_text(row.trait_prompt),
@@ -84,6 +87,7 @@ def passes_thresholds(
     min_final_score: float,
     max_final_score: float | None,
 ) -> bool:
+    """Check whether a judged row passes configured thresholds."""
     return (
         row.neutral_score >= min_neutral_score
         and row.trait_score >= min_trait_score
@@ -94,6 +98,7 @@ def passes_thresholds(
 
 
 def dedupe_rows(rows: list[JudgedCandidatePair]) -> list[JudgedCandidatePair]:
+    """Remove duplicate prompt-pair signatures while preserving order."""
     seen: set[tuple[str, str]] = set()
     deduped: list[JudgedCandidatePair] = []
 
@@ -108,6 +113,7 @@ def dedupe_rows(rows: list[JudgedCandidatePair]) -> list[JudgedCandidatePair]:
 
 
 def group_by_intent(rows: list[JudgedCandidatePair]) -> dict[int, list[JudgedCandidatePair]]:
+    """Group judged rows by intent index."""
     grouped: dict[int, list[JudgedCandidatePair]] = defaultdict(list)
     for row in rows:
         grouped[row.intent_index].append(row)
@@ -115,6 +121,7 @@ def group_by_intent(rows: list[JudgedCandidatePair]) -> dict[int, list[JudgedCan
 
 
 def sort_group(rows: list[JudgedCandidatePair]) -> list[JudgedCandidatePair]:
+    """Sort one intent group by score priority."""
     return sorted(
         rows,
         key=lambda row: (
@@ -134,6 +141,7 @@ def select_from_group(
     top_k: int,
     threshold_score: float,
 ) -> list[JudgedCandidatePair]:
+    """Select rows from one intent group according to mode."""
     if mode == "best_one":
         return rows[:1]
 
@@ -159,6 +167,7 @@ def select_rows(
     dedupe: bool,
     keep_empty_groups: bool,
 ) -> list[JudgedCandidatePair]:
+    """Apply filtering, sorting, dedupe, and selection across intent groups."""
     grouped = group_by_intent(rows)
     selected: list[JudgedCandidatePair] = []
 
@@ -208,6 +217,7 @@ def select_rows(
 
 
 def save_selected(path: Path, rows: list[JudgedCandidatePair]) -> int:
+    """Save selected rows to JSONL and return count."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with jsonlines.open(path, "w") as writer:
         for row in rows:
@@ -216,6 +226,7 @@ def save_selected(path: Path, rows: list[JudgedCandidatePair]) -> int:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for selection stage."""
     parser = argparse.ArgumentParser(description="Select best judged USER prompt pairs")
     parser.add_argument("--judged_file", type=str, required=True)
     parser.add_argument("--output_file", type=str, required=True)
@@ -248,6 +259,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Run the selection stage end to end."""
     args = parse_args()
 
     if args.mode == "top_k" and args.top_k < 1:

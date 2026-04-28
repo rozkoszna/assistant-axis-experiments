@@ -77,6 +77,7 @@ class JudgedCandidatePair:
 
 
 def load_candidates(path: Path) -> list[CandidatePair]:
+    """Load generated candidate prompt pairs from JSONL."""
     rows: list[CandidatePair] = []
     with jsonlines.open(path, "r") as reader:
         for row in reader:
@@ -85,12 +86,14 @@ def load_candidates(path: Path) -> list[CandidatePair]:
 
 
 def build_explanation_block(explanation: Optional[str]) -> str:
+    """Render optional trait explanation text for judge prompts."""
     if explanation:
         return f"Explanation:\n{explanation}\n"
     return "Use a common-sense interpretation of the trait.\n"
 
 
 def build_neutral_judge_prompt(intent: str, prompt: str) -> str:
+    """Build judge prompt for neutral quality scoring."""
     return f"""You are evaluating whether a generated USER prompt is a good neutral version of a seed intent.
 
 Seed intent:
@@ -127,6 +130,7 @@ def build_trait_judge_prompt(
     intent: str,
     prompt: str,
 ) -> str:
+    """Build judge prompt for trait-expression scoring."""
     explanation_block = build_explanation_block(explanation)
     return f"""You are evaluating whether a generated USER prompt expresses a requested trait while preserving the seed intent.
 
@@ -168,6 +172,7 @@ def build_pair_judge_prompt(
     neutral_prompt: str,
     trait_prompt: str,
 ) -> str:
+    """Build judge prompt for paired contrast quality scoring."""
     explanation_block = build_explanation_block(explanation)
     return f"""You are evaluating a pair of USER prompts generated from the same seed intent.
 
@@ -213,6 +218,7 @@ Guidance:
 
 
 def parse_judge_score(response_text: Optional[str]) -> int:
+    """Parse integer score from judge response text."""
     if not response_text:
         return 0
 
@@ -238,6 +244,7 @@ async def judge_rows(
     trait_weight: float,
     pair_weight: float,
 ) -> list[JudgedCandidatePair]:
+    """Run batched judging and return rows with merged scores."""
     if not os.getenv("OPENAI_API_KEY"):
         raise ValueError("OPENAI_API_KEY not found in environment variables")
 
@@ -325,6 +332,7 @@ async def judge_rows(
 
 
 def save_judged(path: Path, rows: list[JudgedCandidatePair]) -> int:
+    """Save judged rows to JSONL and return written count."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with jsonlines.open(path, "w") as writer:
         for row in rows:
@@ -333,6 +341,7 @@ def save_judged(path: Path, rows: list[JudgedCandidatePair]) -> int:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for judging stage."""
     parser = argparse.ArgumentParser(description="Judge generated USER prompt pairs")
     parser.add_argument("--candidates_file", type=str, required=True)
     parser.add_argument("--output_file", type=str, required=True)
@@ -347,6 +356,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Run the judging stage end to end."""
     args = parse_args()
 
     total_weight = args.neutral_weight + args.trait_weight + args.pair_weight
