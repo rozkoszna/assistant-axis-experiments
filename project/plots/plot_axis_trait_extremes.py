@@ -23,8 +23,9 @@ from plots.plot_utils import load_jsonl
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "For each axis, plot top positive/negative user traits by mean "
-            "projection delta with std error bars."
+            "For each axis, pick top positive/negative user traits by mean "
+            "delta (trait-neutral), then plot both Neutral and Trait means "
+            "with std error bars."
         )
     )
     parser.add_argument("--inputs", nargs="+", required=True, help="Projection JSONL files")
@@ -68,36 +69,49 @@ def main() -> None:
     if args.top_k < 1:
         raise ValueError("--top-k must be >= 1")
 
-    by_axis_trait: dict[str, dict[str, list[float]]] = {}
+    by_axis_trait_delta: dict[str, dict[str, list[float]]] = {}
+    by_axis_trait_trait_score: dict[str, dict[str, list[float]]] = {}
+    by_axis_trait_neutral_score: dict[str, dict[str, list[float]]] = {}
     for input_path_str in args.inputs:
         input_path = Path(input_path_str)
         rows = load_jsonl(input_path)
         for row in rows:
             axis = row.get("projection_trait")
             delta = row.get("projection_delta_trait_minus_neutral")
-            if axis is None or delta is None:
+            trait_score = row.get("projection_score_trait")
+            neutral_score = row.get("projection_score_neutral")
+            if axis is None or delta is None or trait_score is None or neutral_score is None:
                 continue
             trait = infer_trait(row, input_path)
             if trait is None:
                 continue
-            by_axis_trait.setdefault(str(axis), {}).setdefault(trait, []).append(float(delta))
+            axis_key = str(axis)
+            by_axis_trait_delta.setdefault(axis_key, {}).setdefault(trait, []).append(float(delta))
+            by_axis_trait_trait_score.setdefault(axis_key, {}).setdefault(trait, []).append(float(trait_score))
+            by_axis_trait_neutral_score.setdefault(axis_key, {}).setdefault(trait, []).append(float(neutral_score))
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    for axis in sorted(by_axis_trait.keys()):
+    for axis in sorted(by_axis_trait_delta.keys()):
         stats_rows: list[dict[str, Any]] = []
-        for trait, values in by_axis_trait[axis].items():
+        for trait, values in by_axis_trait_delta[axis].items():
             if len(values) < args.min_count:
                 continue
-            stats = compute_stats(values)
+            delta_stats = compute_stats(values)
+            trait_stats = compute_stats(by_axis_trait_trait_score[axis][trait])
+            neutral_stats = compute_stats(by_axis_trait_neutral_score[axis][trait])
             stats_rows.append(
                 {
                     "trait": trait,
                     "count": len(values),
-                    "mean_delta": stats["mean"],
-                    "std_delta": stats["std"],
-                    "variance_delta": stats["variance"],
+                    "mean_delta": delta_stats["mean"],
+                    "std_delta": delta_stats["std"],
+                    "variance_delta": delta_stats["variance"],
+                    "mean_trait_score": trait_stats["mean"],
+                    "std_trait_score": trait_stats["std"],
+                    "mean_neutral_score": neutral_stats["mean"],
+                    "std_neutral_score": neutral_stats["std"],
                 }
             )
         if not stats_rows:
@@ -110,18 +124,41 @@ def main() -> None:
             continue
 
         labels = [item["trait"] for item in selected]
-        means = [item["mean_delta"] for item in selected]
-        stds = [item["std_delta"] for item in selected]
-        colors = ["#d95f02"] * len(neg) + ["#1b9e77"] * len(pos)
+        trait_means = [item["mean_trait_score"] for item in selected]
+        trait_stds = [item["std_trait_score"] for item in selected]
+        neutral_means = [item["mean_neutral_score"] for item in selected]
+        neutral_stds = [item["std_neutral_score"] for item in selected]
 
-        width = max(10, 0.75 * len(selected))
+        width = max(10, 0.9 * len(selected))
         fig, ax = plt.subplots(figsize=(width, 5))
-        ax.bar(range(len(labels)), means, yerr=stds, capsize=4, color=colors, alpha=0.9)
-        ax.axhline(0.0, color="black", linewidth=1)
-        ax.set_xticks(range(len(labels)))
+        x = list(range(len(labels)))
+        bar_w = 0.38
+        ax.bar(
+            [value - bar_w / 2 for value in x],
+            neutral_means,
+            yerr=neutral_stds,
+            capsize=3,
+            width=bar_w,
+            color="#6c757d",
+            alpha=0.9,
+            label="Neutral score",
+        )
+        trait_colors = ["#d95f02"] * len(neg) + ["#1b9e77"] * len(pos)
+        ax.bar(
+            [value + bar_w / 2 for value in x],
+            trait_means,
+            yerr=trait_stds,
+            capsize=3,
+            width=bar_w,
+            color=trait_colors,
+            alpha=0.9,
+            label="Trait score",
+        )
+        ax.set_xticks(x)
         ax.set_xticklabels(labels, rotation=35, ha="right")
-        ax.set_ylabel("Mean projection delta (trait - neutral)")
-        ax.set_title(f"Axis: {axis} | top -{args.top_k} and +{args.top_k} traits")
+        ax.set_ylabel("Mean projection score")
+        ax.set_title(f"Axis: {axis} | top -{args.top_k}/+{args.top_k} by delta")
+        ax.legend(loc="best")
         fig.tight_layout()
 
         output_path = output_dir / f"{sanitize_name(axis)}__top{args.top_k}_extremes.png"
