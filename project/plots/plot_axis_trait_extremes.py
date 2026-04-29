@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import math
+from pathlib import Path
+from typing import Any
+
+import matplotlib.pyplot as plt
+
+import sys
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+PROJECT_ROOT = REPO_ROOT / "project"
+for search_path in (REPO_ROOT, PROJECT_ROOT):
+    search_path_str = str(search_path)
+    if search_path_str not in sys.path:
+        sys.path.insert(0, search_path_str)
+
+from plots.plot_utils import load_jsonl
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "For each axis, plot top positive/negative user traits by mean "
+            "projection delta with std error bars."
+        )
+    )
+    parser.add_argument("--inputs", nargs="+", required=True, help="Projection JSONL files")
+    parser.add_argument("--top-k", type=int, default=4, help="Top traits per direction per axis")
+    parser.add_argument("--min-count", type=int, default=1, help="Minimum rows for trait-axis stats")
+    parser.add_argument("--output-dir", type=str, required=True, help="Directory for per-axis PNGs")
+    return parser.parse_args()
+
+
+def infer_trait(row: dict[str, Any], input_path: Path) -> str | None:
+    trait = row.get("trait")
+    if isinstance(trait, str) and trait.strip():
+        return trait.strip()
+    parts = input_path.parts
+    if "user_prompts" in parts:
+        idx = parts.index("user_prompts")
+        if idx + 1 < len(parts):
+            return parts[idx + 1]
+    return None
+
+
+def compute_stats(values: list[float]) -> dict[str, float]:
+    count = len(values)
+    mean = sum(values) / count
+    if count > 1:
+        variance = sum((value - mean) ** 2 for value in values) / (count - 1)
+        std = math.sqrt(variance)
+    else:
+        variance = 0.0
+        std = 0.0
+    return {"mean": mean, "std": std, "variance": variance}
+
+
+def sanitize_name(name: str) -> str:
+    safe = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in name)
+    return safe.strip("_") or "axis"
+
+
+def main() -> None:
+    args = parse_args()
+    if args.top_k < 1:
+        raise ValueError("--top-k must be >= 1")
+
+    by_axis_trait: dict[str, dict[str, list[float]]] = {}
+    for input_path_str in args.inputs:
+        input_path = Path(input_path_str)
+        rows = load_jsonl(input_path)
+        for row in rows:
+            axis = row.get("projection_trait")
+            delta = row.get("projection_delta_trait_minus_neutral")
+            if axis is None or delta is None:
+                continue
+            trait = infer_trait(row, input_path)
+            if trait is None:
+                continue
+            by_axis_trait.setdefault(str(axis), {}).setdefault(trait, []).append(float(delta))
+
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    for axis in sorted(by_axis_trait.keys()):
+        stats_rows: list[dict[str, Any]] = []
+        for trait, values in by_axis_trait[axis].items():
+            if len(values) < args.min_count:
+                continue
+            stats = compute_stats(values)
+            stats_rows.append(
+                {
+                    "trait": trait,
+                    "count": len(values),
+                    "mean_delta": stats["mean"],
+                    "std_delta": stats["std"],
+                    "variance_delta": stats["variance"],
+                }
+            )
+        if not stats_rows:
+            continue
+
+        pos = sorted(stats_rows, key=lambda item: item["mean_delta"], reverse=True)[: args.top_k]
+        neg = sorted(stats_rows, key=lambda item: item["mean_delta"])[: args.top_k]
+        selected = neg + pos
+        if not selected:
+            continue
+
+        labels = [item["trait"] for item in selected]
+        means = [item["mean_delta"] for item in selected]
+        stds = [item["std_delta"] for item in selected]
+        colors = ["#d95f02"] * len(neg) + ["#1b9e77"] * len(pos)
+
+        width = max(10, 0.75 * len(selected))
+        fig, ax = plt.subplots(figsize=(width, 5))
+        ax.bar(range(len(labels)), means, yerr=stds, capsize=4, color=colors, alpha=0.9)
+        ax.axhline(0.0, color="black", linewidth=1)
+        ax.set_xticks(range(len(labels)))
+        ax.set_xticklabels(labels, rotation=35, ha="right")
+        ax.set_ylabel("Mean projection delta (trait - neutral)")
+        ax.set_title(f"Axis: {axis} | top -{args.top_k} and +{args.top_k} traits")
+        fig.tight_layout()
+
+        output_path = output_dir / f"{sanitize_name(axis)}__top{args.top_k}_extremes.png"
+        fig.savefig(output_path, dpi=200)
+        plt.close(fig)
+        print(f"Saved {output_path}")
+
+
+if __name__ == "__main__":
+    main()
