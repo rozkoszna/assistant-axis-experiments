@@ -6,6 +6,10 @@ This script supports two execution modes:
 - default subprocess mode: call the single-trait orchestrator per trait
 - reuse mode (`--reuse-models`): keep stage-1 and stage-4 models loaded across
   traits to avoid repeated model initialization overhead
+
+Projection in both modes uses the assistant model's internal vectors captured
+while generating responses (`answer_mean` hidden states). It does not project
+the raw prompt/response text itself.
 """
 from __future__ import annotations
 

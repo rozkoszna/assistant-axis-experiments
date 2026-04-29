@@ -110,7 +110,11 @@ def add_projection_args(
         "--projection-script",
         type=str,
         default="project/text_projection/project_pair_axes.py",
-        help="Path to the manual pair projection script (used only for manual checks).",
+        help=(
+            "Path to projection script reference. Main pipeline projection uses "
+            "saved model hidden states (`answer_mean`) from response generation, "
+            "not raw text embeddings."
+        ),
     )
 
 

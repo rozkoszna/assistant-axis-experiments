@@ -9,7 +9,8 @@ JSONL file.
 It does not define the axis math itself. Instead, it:
 - chooses which saved axis files to use
 - reads one run's saved rows
-- projects the neutral and trait sides onto the requested assistant axes
+- projects generation-time internal activations for the neutral and trait
+  sides onto the requested assistant axes
 - writes a flattened projection file
 
 What goes in
@@ -20,6 +21,10 @@ Its inputs are typically:
 - a selected/responses file for one run
 - optionally, a saved activation file for that same run
 - one or more assistant axis files
+
+Important: projection uses model internals, not raw text.
+The projected vectors are hidden-state activations (`answer_mean`) captured
+during assistant response generation.
 
 Each row is still a matched pair:
 - neutral side
