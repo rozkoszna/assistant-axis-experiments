@@ -31,6 +31,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--inputs", nargs="+", required=True, help="Projection JSONL files")
     parser.add_argument("--top-k", type=int, default=4, help="Top traits per direction per axis")
     parser.add_argument("--min-count", type=int, default=1, help="Minimum rows for trait-axis stats")
+    parser.add_argument(
+        "--rank-by",
+        choices=["mean_delta", "variance_gap", "std_gap"],
+        default="mean_delta",
+        help=(
+            "How to rank traits before taking top-k extremes: "
+            "mean_delta (trait-neutral mean shift), "
+            "variance_gap (trait variance - neutral variance), "
+            "std_gap (trait std - neutral std)."
+        ),
+    )
     parser.add_argument("--output-dir", type=str, required=True, help="Directory for per-axis PNGs")
     return parser.parse_args()
 
@@ -112,13 +123,17 @@ def main() -> None:
                     "std_trait_score": trait_stats["std"],
                     "mean_neutral_score": neutral_stats["mean"],
                     "std_neutral_score": neutral_stats["std"],
+                    "variance_neutral_score": neutral_stats["variance"],
+                    "variance_gap": trait_stats["variance"] - neutral_stats["variance"],
+                    "std_gap": trait_stats["std"] - neutral_stats["std"],
                 }
             )
         if not stats_rows:
             continue
 
-        pos = sorted(stats_rows, key=lambda item: item["mean_delta"], reverse=True)[: args.top_k]
-        neg = sorted(stats_rows, key=lambda item: item["mean_delta"])[: args.top_k]
+        rank_key = args.rank_by
+        pos = sorted(stats_rows, key=lambda item: item[rank_key], reverse=True)[: args.top_k]
+        neg = sorted(stats_rows, key=lambda item: item[rank_key])[: args.top_k]
         selected = neg + pos
         if not selected:
             continue
@@ -157,7 +172,9 @@ def main() -> None:
         ax.set_xticks(x)
         ax.set_xticklabels(labels, rotation=35, ha="right")
         ax.set_ylabel("Mean projection score")
-        ax.set_title(f"Axis: {axis} | top -{args.top_k}/+{args.top_k} by delta")
+        ax.set_title(
+            f"Axis: {axis} | top -{args.top_k}/+{args.top_k} by {args.rank_by}"
+        )
         ax.legend(loc="best")
         fig.tight_layout()
 
