@@ -23,9 +23,8 @@ from plots.plot_utils import load_jsonl
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "For each axis, pick top positive/negative user traits by mean "
-            "delta (trait-neutral), then plot both Neutral and Trait means "
-            "with std error bars."
+            "For each axis, pick top positive/negative user traits and plot "
+            "trait means with std error bars, plus one aggregated Neutral baseline."
         )
     )
     parser.add_argument("--inputs", nargs="+", required=True, help="Projection JSONL files")
@@ -141,30 +140,17 @@ def main() -> None:
         labels = [item["trait"] for item in selected]
         trait_means = [item["mean_trait_score"] for item in selected]
         trait_stds = [item["std_trait_score"] for item in selected]
-        neutral_means = [item["mean_neutral_score"] for item in selected]
-        neutral_stds = [item["std_neutral_score"] for item in selected]
 
         width = max(10, 0.9 * len(selected))
         fig, ax = plt.subplots(figsize=(width, 5))
         x = list(range(len(labels)))
-        bar_w = 0.38
-        ax.bar(
-            [value - bar_w / 2 for value in x],
-            neutral_means,
-            yerr=neutral_stds,
-            capsize=3,
-            width=bar_w,
-            color="#6c757d",
-            alpha=0.9,
-            label="Neutral score",
-        )
         trait_colors = ["#d95f02"] * len(neg) + ["#1b9e77"] * len(pos)
         ax.bar(
-            [value + bar_w / 2 for value in x],
+            x,
             trait_means,
             yerr=trait_stds,
             capsize=3,
-            width=bar_w,
+            width=0.72,
             color=trait_colors,
             alpha=0.9,
             label="Trait score",
@@ -172,6 +158,29 @@ def main() -> None:
         ax.set_xticks(x)
         ax.set_xticklabels(labels, rotation=35, ha="right")
         ax.set_ylabel("Mean projection score")
+
+        # One neutral baseline per axis, aggregated across all examples/traits.
+        all_neutral_values: list[float] = []
+        for neutral_values in by_axis_trait_neutral_score[axis].values():
+            all_neutral_values.extend(neutral_values)
+        neutral_stats = compute_stats(all_neutral_values)
+        neutral_mean = neutral_stats["mean"]
+        neutral_std = neutral_stats["std"]
+        ax.axhline(
+            neutral_mean,
+            color="#4e79a7",
+            linewidth=2,
+            linestyle="--",
+            label=f"Neutral baseline (mean={neutral_mean:.3f})",
+        )
+        ax.axhspan(
+            neutral_mean - neutral_std,
+            neutral_mean + neutral_std,
+            color="#4e79a7",
+            alpha=0.12,
+            label=f"Neutral ±1 std ({neutral_std:.3f})",
+        )
+
         ax.set_title(
             f"Axis: {axis} | top -{args.top_k}/+{args.top_k} by {args.rank_by}"
         )
