@@ -44,6 +44,7 @@ class JudgedCandidatePair:
     trait: str
     explanation: Optional[str]
     intent_index: int
+    topic: Optional[str] = None
     intent: str
     candidate_index: int
     neutral_prompt: str

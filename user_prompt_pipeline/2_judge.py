@@ -55,6 +55,7 @@ class CandidatePair:
     trait: str
     explanation: Optional[str]
     intent_index: int
+    topic: Optional[str] = None
     intent: str
     candidate_index: int
     neutral_prompt: str
@@ -66,6 +67,7 @@ class JudgedCandidatePair:
     trait: str
     explanation: Optional[str]
     intent_index: int
+    topic: Optional[str] = None
     intent: str
     candidate_index: int
     neutral_prompt: str
@@ -317,6 +319,7 @@ async def judge_rows(
                 trait=row.trait,
                 explanation=row.explanation,
                 intent_index=row.intent_index,
+                topic=row.topic,
                 intent=row.intent,
                 candidate_index=row.candidate_index,
                 neutral_prompt=row.neutral_prompt,

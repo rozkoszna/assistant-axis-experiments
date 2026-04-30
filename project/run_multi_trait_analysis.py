@@ -185,12 +185,16 @@ def load_intents(path: Path) -> list[dict[str, Any]]:
         for idx, row in enumerate(reader):
             if isinstance(row, str):
                 intent = row.strip()
+                topic = None
             elif isinstance(row, dict):
                 intent = str(row.get("intent") or row.get("question") or "").strip()
+                topic = row.get("topic")
+                topic = str(topic).strip() if topic is not None else None
             else:
                 intent = ""
+                topic = None
             if intent:
-                rows.append({"intent_index": idx, "intent": intent})
+                rows.append({"intent_index": idx, "topic": topic, "intent": intent})
     if not rows:
         raise ValueError(f"No valid intents found in {path}")
     return rows
@@ -266,6 +270,7 @@ def generate_candidates_for_trait(
             trait_by_key[(intent_index, candidate_index)] = sanitize_output(str(text))
 
     intent_lookup = {item["intent_index"]: item["intent"] for item in intents}
+    topic_lookup = {item["intent_index"]: item.get("topic") for item in intents}
     rows: list[dict[str, Any]] = []
     for intent_index, candidate_index, _ in jobs:
         key = (intent_index, candidate_index)
@@ -274,6 +279,7 @@ def generate_candidates_for_trait(
                 "trait": trait,
                 "explanation": None,
                 "intent_index": intent_index,
+                "topic": topic_lookup.get(intent_index),
                 "intent": intent_lookup[intent_index],
                 "candidate_index": candidate_index,
                 "neutral_prompt": neutral_by_key.get(key, ""),

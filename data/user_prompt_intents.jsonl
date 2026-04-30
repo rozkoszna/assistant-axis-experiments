@@ -1,5 +1,25 @@
-{"intent": "Ask for an explanation of how backpropagation works."}
-{"intent": "Ask for help understanding what a budget is."}
-{"intent": "Ask why the Roman Empire fell."}
-{"intent": "Ask what allegory means in Animal Farm."}
-{"intent": "Ask what Stoicism is."}
+{"topic": "computer_science", "intent": "Ask for a clear explanation of how backpropagation works in neural networks."}
+{"topic": "computer_science", "intent": "Ask how hash tables handle collisions and why that affects performance."}
+{"topic": "computer_science", "intent": "Ask what overfitting is in machine learning and how regularization helps."}
+{"topic": "computer_science", "intent": "Ask for the difference between processes and threads with a practical example."}
+{"topic": "computer_science", "intent": "Ask why time complexity matters and what Big-O means in simple terms."}
+{"topic": "math_engineering", "intent": "Ask how to solve a system of two linear equations step by step."}
+{"topic": "math_engineering", "intent": "Ask how derivatives are used to find maximum and minimum values in optimization."}
+{"topic": "math_engineering", "intent": "Ask how to estimate the load on a simple beam in a basic engineering design."}
+{"topic": "math_engineering", "intent": "Ask what the chain rule is and when to apply it."}
+{"topic": "math_engineering", "intent": "Ask how Fourier transforms are used in signal processing at a high level."}
+{"topic": "philosophy", "intent": "Ask for the difference between utilitarianism and deontology with a simple case."}
+{"topic": "philosophy", "intent": "Ask what Stoicism teaches about handling emotions and adversity."}
+{"topic": "philosophy", "intent": "Ask whether free will can coexist with determinism in compatibilist views."}
+{"topic": "philosophy", "intent": "Ask what existentialism says about meaning and personal responsibility."}
+{"topic": "philosophy", "intent": "Ask for an explanation of the trolley problem and why philosophers use it."}
+{"topic": "history_literature", "intent": "Ask why the Roman Empire fell and what causes historians debate most."}
+{"topic": "history_literature", "intent": "Ask what triggered the French Revolution and how it changed Europe."}
+{"topic": "history_literature", "intent": "Ask what allegory means in Animal Farm and identify one key example."}
+{"topic": "history_literature", "intent": "Ask how Shakespeare uses soliloquy in Hamlet to reveal character conflict."}
+{"topic": "history_literature", "intent": "Ask how World War I set conditions that contributed to World War II."}
+{"topic": "biology_medicine", "intent": "Ask how vaccines train the immune system and why boosters are sometimes needed."}
+{"topic": "biology_medicine", "intent": "Ask what antibiotics do and why they do not work against viruses."}
+{"topic": "biology_medicine", "intent": "Ask how CRISPR gene editing works in basic biological terms."}
+{"topic": "biology_medicine", "intent": "Ask what insulin does in the body and how diabetes disrupts that process."}
+{"topic": "biology_medicine", "intent": "Ask how mRNA is translated into protein in a human cell."}

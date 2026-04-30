@@ -57,6 +57,7 @@ SYSTEM_PROMPT = "You generate realistic USER prompts only."
 @dataclass
 class IntentRecord:
     intent_index: int
+    topic: Optional[str]
     intent: str
 
 
@@ -65,6 +66,7 @@ class CandidatePair:
     trait: str
     explanation: Optional[str]
     intent_index: int
+    topic: Optional[str]
     intent: str
     candidate_index: int
     neutral_prompt: str
@@ -79,14 +81,17 @@ def load_intents(path: Path) -> list[IntentRecord]:
                 intent = row.strip()
             elif isinstance(row, dict):
                 intent = str(row.get("intent") or row.get("question") or "").strip()
+                topic = row.get("topic")
+                topic = str(topic).strip() if topic is not None else None
             else:
                 intent = ""
+                topic = None
 
             if not intent:
                 logger.warning("Skipping empty intent at row %s", idx)
                 continue
 
-            intents.append(IntentRecord(intent_index=idx, intent=intent))
+            intents.append(IntentRecord(intent_index=idx, topic=topic, intent=intent))
 
     if not intents:
         raise ValueError(f"No valid intents found in {path}")
@@ -368,6 +373,7 @@ def iter_candidate_pairs(
                 trait=trait,
                 explanation=explanation,
                 intent_index=item.intent_index,
+                topic=item.topic,
                 intent=item.intent,
                 candidate_index=candidate_index,
                 neutral_prompt=neutral_prompt,
