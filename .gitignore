@@ -47,6 +47,14 @@ ENV/
 
 # Outputs
 
+outputs/user_prompts/**
+outputs/comparisons/**
+outputs/analysis/**/*.json
+outputs/analysis/**/*.csv
+outputs/analysis/**/*.pt
+outputs/analysis/**/*.jsonl
+!outputs/analysis/**/*.png
+!outputs/analysis/**/*.pdf
 
 # OS
 .DS_Store
