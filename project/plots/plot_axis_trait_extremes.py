@@ -32,13 +32,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-count", type=int, default=1, help="Minimum rows for trait-axis stats")
     parser.add_argument(
         "--rank-by",
-        choices=["mean_delta", "variance_gap", "std_gap"],
+        choices=["mean_delta", "variance_gap", "std_gap", "global_delta"],
         default="mean_delta",
         help=(
             "How to rank traits before taking top-k extremes: "
             "mean_delta (trait-neutral mean shift), "
             "variance_gap (trait variance - neutral variance), "
-            "std_gap (trait std - neutral std)."
+            "std_gap (trait std - neutral std), "
+            "global_delta (trait mean score - one global neutral mean for the axis)."
         ),
     )
     parser.add_argument("--output-dir", type=str, required=True, help="Directory for per-axis PNGs")
@@ -105,6 +106,14 @@ def main() -> None:
 
     for axis in sorted(by_axis_trait_delta.keys()):
         stats_rows: list[dict[str, Any]] = []
+        # One neutral baseline per axis, aggregated across all examples/traits.
+        all_neutral_values: list[float] = []
+        for neutral_values in by_axis_trait_neutral_score[axis].values():
+            all_neutral_values.extend(neutral_values)
+        neutral_stats = compute_stats(all_neutral_values)
+        neutral_mean = neutral_stats["mean"]
+        neutral_std = neutral_stats["std"]
+
         for trait, values in by_axis_trait_delta[axis].items():
             if len(values) < args.min_count:
                 continue
@@ -125,6 +134,7 @@ def main() -> None:
                     "variance_neutral_score": neutral_stats["variance"],
                     "variance_gap": trait_stats["variance"] - neutral_stats["variance"],
                     "std_gap": trait_stats["std"] - neutral_stats["std"],
+                    "global_delta": trait_stats["mean"] - neutral_mean,
                 }
             )
         if not stats_rows:
@@ -159,13 +169,6 @@ def main() -> None:
         ax.set_xticklabels(labels, rotation=35, ha="right")
         ax.set_ylabel("Mean projection score")
 
-        # One neutral baseline per axis, aggregated across all examples/traits.
-        all_neutral_values: list[float] = []
-        for neutral_values in by_axis_trait_neutral_score[axis].values():
-            all_neutral_values.extend(neutral_values)
-        neutral_stats = compute_stats(all_neutral_values)
-        neutral_mean = neutral_stats["mean"]
-        neutral_std = neutral_stats["std"]
         ax.axhline(
             neutral_mean,
             color="#4e79a7",
