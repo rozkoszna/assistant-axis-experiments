@@ -55,6 +55,7 @@ outputs/analysis/**/*.pt
 outputs/analysis/**/*.jsonl
 !outputs/analysis/**/*.png
 !outputs/analysis/**/*.pdf
+!outputs/analysis/significance/**
 
 # OS
 .DS_Store
