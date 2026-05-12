@@ -128,6 +128,18 @@ def parse_args() -> argparse.Namespace:
     add_judge_args(parser)
     add_projection_args(parser, axes_dir_required=False, include_projection_toggle=True)
     add_plot_args(parser)
+    parser.add_argument(
+        "--min-selected",
+        type=int,
+        default=0,
+        help="Minimum number of selected prompts. If not reached, regenerate and retry (default: 0 = disabled).",
+    )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=5,
+        help="Maximum number of regeneration retries when --min-selected is set (default: 5).",
+    )
 
     return parser.parse_args()
 
@@ -314,6 +326,24 @@ def build_response_cmd(
     return cmd
 
 
+def count_jsonl_rows(path: Path) -> int:
+    if not path.exists():
+        return 0
+    with open(path) as f:
+        return sum(1 for line in f if line.strip())
+
+
+def merge_jsonl_files(sources: list[Path], dest: Path) -> None:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with open(dest, "w") as out:
+        for src in sources:
+            if src.exists():
+                with open(src) as f:
+                    for line in f:
+                        if line.strip():
+                            out.write(line)
+
+
 def main() -> None:
     """Run the full single-trait pipeline from prompt generation through plotting."""
     args = parse_args()
@@ -335,6 +365,44 @@ def main() -> None:
     run_cmd(gen_cmd, cwd=REPO_ROOT)
     run_cmd(judge_cmd, cwd=REPO_ROOT)
     run_cmd(select_cmd, cwd=REPO_ROOT)
+
+    # If --min-selected is set, retry generation until enough prompts are selected.
+    if args.min_selected > 0:
+        all_judged_files = [paths["judged_file"]]
+        merged_judged = paths["judged_file"].parent / f"{run_name}__merged.jsonl"
+        retry = 0
+        n_selected = count_jsonl_rows(paths["selected_file"])
+
+        while n_selected < args.min_selected and retry < args.max_retries:
+            retry += 1
+            print(
+                f"\nSelected {n_selected}/{args.min_selected} prompts. "
+                f"Retry {retry}/{args.max_retries} — generating more candidates..."
+            )
+            retry_candidates = paths["candidates_file"].parent / f"{run_name}__retry{retry}.jsonl"
+            retry_judged = paths["judged_file"].parent / f"{run_name}__retry{retry}.jsonl"
+
+            retry_gen_cmd = build_generate_cmd(args, retry_candidates)
+            retry_judge_cmd = build_judge_cmd(args, retry_candidates, retry_judged)
+
+            run_cmd(retry_gen_cmd, cwd=REPO_ROOT)
+            run_cmd(retry_judge_cmd, cwd=REPO_ROOT)
+
+            all_judged_files.append(retry_judged)
+            merge_jsonl_files(all_judged_files, merged_judged)
+
+            retry_select_cmd = build_select_cmd(args, merged_judged, paths["selected_file"])
+            run_cmd(retry_select_cmd, cwd=REPO_ROOT)
+
+            n_selected = count_jsonl_rows(paths["selected_file"])
+
+        if n_selected < args.min_selected:
+            print(
+                f"\nWarning: only {n_selected}/{args.min_selected} prompts selected "
+                f"after {args.max_retries} retries. Proceeding with what we have."
+            )
+        else:
+            print(f"\nReached {n_selected} selected prompts after {retry} retries.")
 
     if args.with_projection:
         # Before projection, generate assistant responses to the selected prompt
