@@ -272,6 +272,7 @@ def main() -> None:
         table2.append(
             {
                 "trait": trait,
+                "composite_score": n_sig * mean_abs_d,
                 "n_significant_axes": n_sig,
                 "mean_abs_cohen_d": mean_abs_d,
                 "max_abs_cohen_d": max_abs_d,
@@ -279,7 +280,7 @@ def main() -> None:
                 "top_direction": top_direction,
             }
         )
-    table2 = sorted(table2, key=lambda r: r["n_significant_axes"], reverse=True)
+    table2 = sorted(table2, key=lambda r: r["composite_score"], reverse=True)
 
     # Table 3: per-axis summary (how many traits significantly move each axis)
     all_axes = sorted({r["axis"] for r in pairs})
@@ -302,6 +303,7 @@ def main() -> None:
         table3.append(
             {
                 "axis": axis,
+                "composite_score": n_sig * mean_abs_d,
                 "n_significant_traits": n_sig,
                 "mean_abs_cohen_d": mean_abs_d,
                 "max_abs_cohen_d": max_abs_d,
@@ -309,7 +311,7 @@ def main() -> None:
                 "top_direction": top_direction,
             }
         )
-    table3 = sorted(table3, key=lambda r: r["n_significant_traits"], reverse=True)
+    table3 = sorted(table3, key=lambda r: r["composite_score"], reverse=True)
 
     # Table 4a: distribution — how many traits move exactly N axes significantly
     axes_per_trait_counts: dict[int, int] = defaultdict(int)
@@ -345,7 +347,7 @@ def main() -> None:
         table2,
         t2_path,
         fieldnames=[
-            "trait", "n_significant_axes", "mean_abs_cohen_d",
+            "trait", "composite_score", "n_significant_axes", "mean_abs_cohen_d",
             "max_abs_cohen_d", "top_axis", "top_direction",
         ],
     )
@@ -356,7 +358,7 @@ def main() -> None:
         table3,
         t3_path,
         fieldnames=[
-            "axis", "n_significant_traits", "mean_abs_cohen_d",
+            "axis", "composite_score", "n_significant_traits", "mean_abs_cohen_d",
             "max_abs_cohen_d", "top_trait", "top_direction",
         ],
     )
@@ -403,21 +405,21 @@ def main() -> None:
                 f"d={r['cohen_d']:+.3f}  p_adj={r['p_adjusted']:.4f}  n={r['n']}"
             )
 
-    print("\nTop 10 traits by n_significant_axes:")
+    print("\nTop 10 traits by composite score (n_significant_axes × mean_abs_cohen_d):")
     for i, r in enumerate(table2[:10], 1):
         top = f"{r['top_axis']}{r['top_direction']}" if r["top_axis"] else "—"
         print(
-            f"  {i:>2}. {r['trait']:<22} n_sig={r['n_significant_axes']:>3}  "
-            f"mean_d={r['mean_abs_cohen_d']:.3f}  max_d={r['max_abs_cohen_d']:.3f}  "
+            f"  {i:>2}. {r['trait']:<22} score={r['composite_score']:>6.1f}  "
+            f"n_sig={r['n_significant_axes']:>3}  mean_d={r['mean_abs_cohen_d']:.3f}  "
             f"top={top}"
         )
 
-    print("\nTop 10 axes by n_significant_traits:")
+    print("\nTop 10 axes by composite score (n_significant_traits × mean_abs_cohen_d):")
     for i, r in enumerate(table3[:10], 1):
         top = f"{r['top_trait']}{r['top_direction']}" if r["top_trait"] else "—"
         print(
-            f"  {i:>2}. {r['axis']:<22} n_sig={r['n_significant_traits']:>3}  "
-            f"mean_d={r['mean_abs_cohen_d']:.3f}  max_d={r['max_abs_cohen_d']:.3f}  "
+            f"  {i:>2}. {r['axis']:<22} score={r['composite_score']:>6.1f}  "
+            f"n_sig={r['n_significant_traits']:>3}  mean_d={r['mean_abs_cohen_d']:.3f}  "
             f"top={top}"
         )
 
