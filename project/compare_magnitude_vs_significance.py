@@ -56,6 +56,14 @@ def parse_args() -> argparse.Namespace:
         help="Filename prefix (default: magnitude_vs_significance).",
     )
     parser.add_argument(
+        "--magnitude-col",
+        default=None,
+        help=(
+            "Column to use from the magnitude CSV (default: auto-detect "
+            "'any_abs_mean_sum' or 'abs_mean_sum')."
+        ),
+    )
+    parser.add_argument(
         "--top-k",
         type=int,
         default=20,
@@ -100,6 +108,21 @@ def main() -> None:
     mag_by_trait = {r["trait"]: r for r in mag_rows}
     sig_by_trait = {r["trait"]: r for r in sig_rows}
 
+    # Auto-detect magnitude column if not specified
+    mag_col = args.magnitude_col
+    if mag_col is None:
+        sample = mag_rows[0] if mag_rows else {}
+        for candidate in ("any_top10_count", "top10_count", "any_abs_mean_sum", "abs_mean_sum"):
+            if candidate in sample:
+                mag_col = candidate
+                break
+        if mag_col is None:
+            raise ValueError(
+                f"Cannot auto-detect magnitude column. Available: {list(sample.keys())}. "
+                "Use --magnitude-col to specify."
+            )
+    print(f"Using magnitude column: '{mag_col}'")
+
     # Only compare traits present in both
     common_traits = sorted(set(mag_by_trait) & set(sig_by_trait))
     missing_mag = sorted(set(sig_by_trait) - set(mag_by_trait))
@@ -110,7 +133,7 @@ def main() -> None:
         print(f"Traits in magnitude but not significance CSV: {missing_sig}")
 
     mag_rank = rank_by(
-        [mag_by_trait[t] for t in common_traits], "any_abs_mean_sum", reverse=True
+        [mag_by_trait[t] for t in common_traits], mag_col, reverse=True
     )
     sig_rank = rank_by(
         [sig_by_trait[t] for t in common_traits], "n_significant_axes", reverse=True
@@ -127,7 +150,7 @@ def main() -> None:
                 "significance_rank": sr,
                 "rank_diff": sr - mr,       # positive = significance ranks lower than magnitude
                 "abs_rank_diff": abs(sr - mr),
-                "any_abs_mean_sum": float(mag_by_trait[trait]["any_abs_mean_sum"]),
+                mag_col: float(mag_by_trait[trait][mag_col]),
                 "n_significant_axes": int(sig_by_trait[trait]["n_significant_axes"]),
                 "mean_abs_cohen_d": float(sig_by_trait[trait]["mean_abs_cohen_d"]),
             }
@@ -150,7 +173,7 @@ def main() -> None:
 
     fieldnames = [
         "trait", "magnitude_rank", "significance_rank", "rank_diff",
-        "abs_rank_diff", "any_abs_mean_sum", "n_significant_axes", "mean_abs_cohen_d",
+        "abs_rank_diff", mag_col, "n_significant_axes", "mean_abs_cohen_d",
     ]
 
     out_path = output_dir / f"{args.prefix}__comparison.csv"
@@ -159,37 +182,38 @@ def main() -> None:
 
     # Print summary
     print(f"\nTraits compared: {len(common_traits)}")
-    print(f"Spearman rank correlation (magnitude vs significance): {rho:.4f}")
+    print(f"Spearman rank correlation ({mag_col} vs n_significant_axes): {rho:.4f}")
 
-    print(f"\nTop {args.top_k} traits ranked higher by MAGNITUDE than significance")
-    print("(big raw movement but not consistently significant — possibly noisy)")
+    mag_label = mag_col[:14]
+    print(f"\nTop {args.top_k} traits ranked higher by {mag_col} than significance")
+    print("(appear in many top-10 axes by raw count but fewer pass significance test)")
     print(f"{'trait':<22} {'mag_rank':>8} {'sig_rank':>8} {'diff':>6}  "
-          f"{'abs_mean_sum':>14}  {'n_sig_axes':>10}  {'mean_d':>7}")
+          f"{mag_label:>14}  {'n_sig_axes':>10}  {'mean_d':>7}")
     print("-" * 80)
     for r in overrated[: args.top_k]:
         print(
             f"  {r['trait']:<20} {r['magnitude_rank']:>8} {r['significance_rank']:>8} "
-            f"{r['rank_diff']:>+6}  {r['any_abs_mean_sum']:>14.3f}  "
+            f"{r['rank_diff']:>+6}  {r[mag_col]:>14.1f}  "
             f"{r['n_significant_axes']:>10}  {r['mean_abs_cohen_d']:>7.3f}"
         )
 
-    print(f"\nTop {args.top_k} traits ranked higher by SIGNIFICANCE than magnitude")
-    print("(consistent signal even if raw movement is smaller — reliable movers)")
+    print(f"\nTop {args.top_k} traits ranked higher by significance than {mag_col}")
+    print("(fewer raw top-10 appearances but movement consistently passes significance test)")
     print(f"{'trait':<22} {'mag_rank':>8} {'sig_rank':>8} {'diff':>6}  "
-          f"{'abs_mean_sum':>14}  {'n_sig_axes':>10}  {'mean_d':>7}")
+          f"{mag_label:>14}  {'n_sig_axes':>10}  {'mean_d':>7}")
     print("-" * 80)
     for r in underrated[: args.top_k]:
         print(
             f"  {r['trait']:<20} {r['magnitude_rank']:>8} {r['significance_rank']:>8} "
-            f"{r['rank_diff']:>+6}  {r['any_abs_mean_sum']:>14.3f}  "
+            f"{r['rank_diff']:>+6}  {r[mag_col]:>14.1f}  "
             f"{r['n_significant_axes']:>10}  {r['mean_abs_cohen_d']:>7.3f}"
         )
 
-    print(f"\nTop 10 by magnitude ranking (for reference):")
+    print(f"\nTop 10 by {mag_col} ranking (for reference):")
     for r in by_mag[:10]:
         print(
             f"  mag={r['magnitude_rank']:>3}  sig={r['significance_rank']:>3}  "
-            f"{r['trait']:<22}  abs_sum={r['any_abs_mean_sum']:.3f}  "
+            f"{r['trait']:<22}  {mag_col}={r[mag_col]:.1f}  "
             f"n_sig={r['n_significant_axes']}"
         )
 
