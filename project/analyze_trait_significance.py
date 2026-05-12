@@ -280,12 +280,20 @@ def main() -> None:
             trait_sig[row["trait"]].append(row)
             axis_sig[row["axis"]].append(row)
 
+    # Pre-compute totals: how many axes/traits each trait/axis was tested against
+    trait_total_axes: dict[str, int] = defaultdict(int)
+    axis_total_traits: dict[str, int] = defaultdict(int)
+    for row in pairs:
+        trait_total_axes[row["trait"]] += 1
+        axis_total_traits[row["axis"]] += 1
+
     # Table 2: per-trait summary (how many axes each trait moves significantly)
     all_traits = sorted({r["trait"] for r in pairs})
     table2: list[dict[str, Any]] = []
     for trait in all_traits:
         sig_rows = trait_sig.get(trait, [])
         n_sig = len(sig_rows)
+        n_total = trait_total_axes[trait]
         if sig_rows:
             abs_ds = [abs(r["cohen_d"]) for r in sig_rows]
             mean_abs_d = sum(abs_ds) / len(abs_ds)
@@ -305,7 +313,9 @@ def main() -> None:
             {
                 "trait": trait,
                 "composite_score": n_sig * mean_abs_d,
+                "n_total_axes": n_total,
                 "n_significant_axes": n_sig,
+                "pct_significant_axes": n_sig / n_total if n_total > 0 else 0.0,
                 "mean_abs_cohen_d": mean_abs_d,
                 "max_abs_cohen_d": max_abs_d,
                 "mean_exceedance_rate": mean_exceedance,
@@ -321,6 +331,7 @@ def main() -> None:
     for axis in all_axes:
         sig_rows = axis_sig.get(axis, [])
         n_sig = len(sig_rows)
+        n_total = axis_total_traits[axis]
         if sig_rows:
             abs_ds = [abs(r["cohen_d"]) for r in sig_rows]
             mean_abs_d = sum(abs_ds) / len(abs_ds)
@@ -340,7 +351,9 @@ def main() -> None:
             {
                 "axis": axis,
                 "composite_score": n_sig * mean_abs_d,
+                "n_total_traits": n_total,
                 "n_significant_traits": n_sig,
+                "pct_significant_traits": n_sig / n_total if n_total > 0 else 0.0,
                 "mean_abs_cohen_d": mean_abs_d,
                 "max_abs_cohen_d": max_abs_d,
                 "mean_exceedance_rate": mean_exceedance,
@@ -385,8 +398,9 @@ def main() -> None:
         table2,
         t2_path,
         fieldnames=[
-            "trait", "composite_score", "n_significant_axes", "mean_abs_cohen_d",
-            "max_abs_cohen_d", "mean_exceedance_rate", "top_axis", "top_direction",
+            "trait", "composite_score", "n_total_axes", "n_significant_axes",
+            "pct_significant_axes", "mean_abs_cohen_d", "max_abs_cohen_d",
+            "mean_exceedance_rate", "top_axis", "top_direction",
         ],
     )
     print(f"Saved Table 2 (per-trait summary):      {t2_path}")
@@ -396,8 +410,9 @@ def main() -> None:
         table3,
         t3_path,
         fieldnames=[
-            "axis", "composite_score", "n_significant_traits", "mean_abs_cohen_d",
-            "max_abs_cohen_d", "mean_exceedance_rate", "top_trait", "top_direction",
+            "axis", "composite_score", "n_total_traits", "n_significant_traits",
+            "pct_significant_traits", "mean_abs_cohen_d", "max_abs_cohen_d",
+            "mean_exceedance_rate", "top_trait", "top_direction",
         ],
     )
     print(f"Saved Table 3 (per-axis summary):       {t3_path}")
@@ -461,6 +476,32 @@ def main() -> None:
             f"  {i:>2}. {r['axis']:<22} score={r['composite_score']:>6.1f}  "
             f"n_sig={r['n_significant_traits']:>3}  mean_d={r['mean_abs_cohen_d']:.3f}  "
             f"exceedance={exc}  top={top}"
+        )
+
+    print("\nCombined coverage — traits (total axes tested vs significant):")
+    print(f"  {'trait':<22}  {'total':>5}  {'sig':>5}  {'%sig':>6}  {'mean_d':>7}  {'exceedance':>10}")
+    print("  " + "-" * 62)
+    for r in table2:
+        exc = f"{r['mean_exceedance_rate']:.0%}" if not math.isnan(r["mean_exceedance_rate"]) else "n/a"
+        pct = f"{r['pct_significant_axes']:.0%}"
+        bar_filled = int(r["pct_significant_axes"] * 20)
+        bar = "█" * bar_filled + "░" * (20 - bar_filled)
+        print(
+            f"  {r['trait']:<22}  {r['n_total_axes']:>5}  {r['n_significant_axes']:>5}  "
+            f"{pct:>6}  {r['mean_abs_cohen_d']:>7.3f}  {exc:>10}  {bar}"
+        )
+
+    print("\nCombined coverage — axes (total traits tested vs significant):")
+    print(f"  {'axis':<22}  {'total':>5}  {'sig':>5}  {'%sig':>6}  {'mean_d':>7}  {'exceedance':>10}")
+    print("  " + "-" * 62)
+    for r in table3:
+        exc = f"{r['mean_exceedance_rate']:.0%}" if not math.isnan(r["mean_exceedance_rate"]) else "n/a"
+        pct = f"{r['pct_significant_traits']:.0%}"
+        bar_filled = int(r["pct_significant_traits"] * 20)
+        bar = "█" * bar_filled + "░" * (20 - bar_filled)
+        print(
+            f"  {r['axis']:<22}  {r['n_total_traits']:>5}  {r['n_significant_traits']:>5}  "
+            f"{pct:>6}  {r['mean_abs_cohen_d']:>7.3f}  {exc:>10}  {bar}"
         )
 
     print("\nDistribution: how many traits move exactly N axes significantly")
