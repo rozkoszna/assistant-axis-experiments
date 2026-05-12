@@ -193,6 +193,9 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     raw_deltas: dict[tuple[str, str], list[float]] = defaultdict(list)
+    trait_scores: dict[tuple[str, str], list[float]] = defaultdict(list)
+    neutral_scores: dict[str, list[float]] = defaultdict(list)  # axis -> all neutral scores
+
     for input_path_str in args.inputs:
         input_path = Path(input_path_str)
         if input_path.stem.endswith("__neutral"):
@@ -201,15 +204,31 @@ def main() -> None:
         for row in rows:
             axis = row.get("projection_trait")
             delta = row.get("projection_delta_trait_minus_neutral")
+            score_trait = row.get("projection_score_trait")
+            score_neutral = row.get("projection_score_neutral")
             if axis is None or delta is None:
                 continue
             trait = infer_trait(row, input_path)
             if trait is None:
                 continue
-            raw_deltas[(trait, str(axis))].append(float(delta))
+            key = (trait, str(axis))
+            raw_deltas[key].append(float(delta))
+            if score_trait is not None:
+                trait_scores[key].append(float(score_trait))
+            if score_neutral is not None:
+                neutral_scores[str(axis)].append(float(score_neutral))
 
     if not raw_deltas:
         raise ValueError("No delta values loaded from inputs.")
+
+    # Precompute neutral mean ± std per axis across all traits
+    neutral_stats: dict[str, tuple[float, float]] = {}
+    for axis, vals in neutral_scores.items():
+        if len(vals) < 2:
+            continue
+        m = sum(vals) / len(vals)
+        std = math.sqrt(sum((v - m) ** 2 for v in vals) / (len(vals) - 1))
+        neutral_stats[axis] = (m, std)
 
     pairs: list[dict[str, Any]] = []
     for (trait, axis), vals in raw_deltas.items():
@@ -219,6 +238,15 @@ def main() -> None:
         mean_val = sum(vals) / n
         t_stat, p_raw = ttest_p(vals)
         d = cohen_d(vals)
+
+        # Exceedance: fraction of trait scores outside neutral mean ± 1 std
+        exceedance_rate = float("nan")
+        if axis in neutral_stats and trait_scores.get((trait, axis)):
+            n_mean, n_std = neutral_stats[axis]
+            t_scores = trait_scores[(trait, axis)]
+            n_outside = sum(1 for s in t_scores if s < n_mean - n_std or s > n_mean + n_std)
+            exceedance_rate = n_outside / len(t_scores)
+
         pairs.append(
             {
                 "trait": trait,
@@ -228,6 +256,7 @@ def main() -> None:
                 "cohen_d": d,
                 "t_stat": t_stat,
                 "p_raw": p_raw,
+                "exceedance_rate": exceedance_rate,
             }
         )
 
@@ -264,11 +293,14 @@ def main() -> None:
             top_row = max(sig_rows, key=lambda r: abs(r["cohen_d"]))
             top_axis = top_row["axis"]
             top_direction = top_row["direction"]
+            exc_vals = [r["exceedance_rate"] for r in sig_rows if not math.isnan(r["exceedance_rate"])]
+            mean_exceedance = sum(exc_vals) / len(exc_vals) if exc_vals else float("nan")
         else:
             mean_abs_d = 0.0
             max_abs_d = 0.0
             top_axis = ""
             top_direction = ""
+            mean_exceedance = float("nan")
         table2.append(
             {
                 "trait": trait,
@@ -276,6 +308,7 @@ def main() -> None:
                 "n_significant_axes": n_sig,
                 "mean_abs_cohen_d": mean_abs_d,
                 "max_abs_cohen_d": max_abs_d,
+                "mean_exceedance_rate": mean_exceedance,
                 "top_axis": top_axis,
                 "top_direction": top_direction,
             }
@@ -295,11 +328,14 @@ def main() -> None:
             top_row = max(sig_rows, key=lambda r: abs(r["cohen_d"]))
             top_trait = top_row["trait"]
             top_direction = top_row["direction"]
+            exc_vals = [r["exceedance_rate"] for r in sig_rows if not math.isnan(r["exceedance_rate"])]
+            mean_exceedance = sum(exc_vals) / len(exc_vals) if exc_vals else float("nan")
         else:
             mean_abs_d = 0.0
             max_abs_d = 0.0
             top_trait = ""
             top_direction = ""
+            mean_exceedance = float("nan")
         table3.append(
             {
                 "axis": axis,
@@ -307,6 +343,7 @@ def main() -> None:
                 "n_significant_traits": n_sig,
                 "mean_abs_cohen_d": mean_abs_d,
                 "max_abs_cohen_d": max_abs_d,
+                "mean_exceedance_rate": mean_exceedance,
                 "top_trait": top_trait,
                 "top_direction": top_direction,
             }
@@ -338,6 +375,7 @@ def main() -> None:
         fieldnames=[
             "trait", "axis", "n", "mean_delta", "cohen_d",
             "t_stat", "p_raw", "p_adjusted", "significant", "direction",
+            "exceedance_rate",
         ],
     )
     print(f"Saved Table 1 (trait-axis pairs):       {t1_path}")
@@ -348,7 +386,7 @@ def main() -> None:
         t2_path,
         fieldnames=[
             "trait", "composite_score", "n_significant_axes", "mean_abs_cohen_d",
-            "max_abs_cohen_d", "top_axis", "top_direction",
+            "max_abs_cohen_d", "mean_exceedance_rate", "top_axis", "top_direction",
         ],
     )
     print(f"Saved Table 2 (per-trait summary):      {t2_path}")
@@ -359,7 +397,7 @@ def main() -> None:
         t3_path,
         fieldnames=[
             "axis", "composite_score", "n_significant_traits", "mean_abs_cohen_d",
-            "max_abs_cohen_d", "top_trait", "top_direction",
+            "max_abs_cohen_d", "mean_exceedance_rate", "top_trait", "top_direction",
         ],
     )
     print(f"Saved Table 3 (per-axis summary):       {t3_path}")
@@ -408,19 +446,21 @@ def main() -> None:
     print("\nTop 10 traits by composite score (n_significant_axes × mean_abs_cohen_d):")
     for i, r in enumerate(table2[:10], 1):
         top = f"{r['top_axis']}{r['top_direction']}" if r["top_axis"] else "—"
+        exc = f"{r['mean_exceedance_rate']:.0%}" if not math.isnan(r["mean_exceedance_rate"]) else "n/a"
         print(
             f"  {i:>2}. {r['trait']:<22} score={r['composite_score']:>6.1f}  "
             f"n_sig={r['n_significant_axes']:>3}  mean_d={r['mean_abs_cohen_d']:.3f}  "
-            f"top={top}"
+            f"exceedance={exc}  top={top}"
         )
 
     print("\nTop 10 axes by composite score (n_significant_traits × mean_abs_cohen_d):")
     for i, r in enumerate(table3[:10], 1):
         top = f"{r['top_trait']}{r['top_direction']}" if r["top_trait"] else "—"
+        exc = f"{r['mean_exceedance_rate']:.0%}" if not math.isnan(r["mean_exceedance_rate"]) else "n/a"
         print(
             f"  {i:>2}. {r['axis']:<22} score={r['composite_score']:>6.1f}  "
             f"n_sig={r['n_significant_traits']:>3}  mean_d={r['mean_abs_cohen_d']:.3f}  "
-            f"top={top}"
+            f"exceedance={exc}  top={top}"
         )
 
     print("\nDistribution: how many traits move exactly N axes significantly")
