@@ -1,0 +1,139 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{microtype}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.6em}
+
+\title{Weekly Update --- Latent Style Steering}
+\author{Wiktoria Rozkosz}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+This week I ran the full significance analysis over all 51 user traits and 188 latent style axes. Below I summarize what I found, what surprised me, and what I think it means.
+
+\section*{What I did}
+
+I had 51 user traits (e.g.\ \textit{anxious}, \textit{skeptical}, \textit{empathetic}, \textit{playful}) each with 100 matched prompt pairs---a neutral version and a trait-conditioned version covering the same intent. Both were run through the model and the activations were projected onto 188 pre-computed latent style axes.
+
+To go beyond just looking at raw movement, I ran one-sample $t$-tests on the per-prompt projection deltas (trait minus neutral), applied Benjamini--Hochberg FDR correction across all 9,588 (trait, axis) pairs, and computed Cohen's $d$ as an effect size. I also added an \textit{exceedance rate}: what fraction of individual responses falls outside the neutral mean $\pm 1$ standard deviation band---basically, how often is the shift visible in a single response rather than only in aggregate.
+
+\section*{The headline number}
+
+\textbf{5,731 out of 9,588 pairs (60\%) were statistically significant} after FDR correction. That is higher than I expected. The direction was predominantly positive---4,053 positive vs.\ 1,678 negative (roughly 2.4:1)---which suggests the model's default style sits below the ceiling of many axes and user traits tend to push it upward.
+
+\section*{Traits: three very different groups}
+
+Not all traits are equal. The fraction of axes moved significantly ranges from 10\% to 90\% depending on the trait:
+
+\begin{center}
+\begin{tabular}{llcc}
+\toprule
+Group & Example traits & Axes moved & Mean $|d|$ \\
+\midrule
+Broad movers   & playful, entertaining, anxious, skeptical, empathetic & 80--90\% & $\approx 0.69$ \\
+Medium movers  & inspirational, pessimistic, cautious, reactive         & 60--80\% & $\approx 0.57$ \\
+Moderate       & analytical, calm, practical, educational               & 40--60\% & $\approx 0.38$ \\
+Narrow movers  & stoic, methodical, data\_driven, factual               & 20--40\% & $\approx 0.32$ \\
+Almost nothing & concise                                                & 10\%     & $0.24$         \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The pattern is clear: emotional and interpersonal traits move nearly everything, while cognitive and procedural traits barely move anything. My interpretation is that the model already defaults to being factual and concise, so prompting it to be more factual or concise does not change much. Telling it the user is anxious or playful, on the other hand, triggers a much wider response.
+
+\section*{The shift is global, not targeted}
+
+One thing I found interesting: trait prompting does not only shift the one axis you might expect. When the user is anxious, it is not just the \textit{emotional} axis that moves. The top traits moved the following numbers of axes significantly:
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Trait & Axes moved significantly & \% of 188 \\
+\midrule
+playful      & 169 & 90\% \\
+entertaining & 163 & 87\% \\
+risk\_taking & 161 & 86\% \\
+anxious      & 158 & 84\% \\
+empathetic   & 153 & 81\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+So when an emotional signal fires, it seems to shift the model into a broad communication mode rather than nudging a single stylistic property. That feels like a meaningful finding about how these traits interact with the model's behavior.
+
+\section*{Axes: some move easily, some barely move at all}
+
+The axes also split into two groups:
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Axis & Traits that move it & \% sensitive \\
+\midrule
+provocative  & 50/51 & 98\% \\
+whimsical    & 50/51 & 98\% \\
+creative     & 50/51 & 98\% \\
+condescending & 48/51 & 94\% \\
+subversive   & 47/51 & 92\% \\
+\midrule
+benevolent   & 3/51  & 6\%  \\
+secular      & 4/51  & 8\%  \\
+universalist & 5/51  & 10\% \\
+avoidant     & 5/51  & 10\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The highly sensitive axes are all expressive style dimensions. The resistant ones are value and identity dimensions. The \texttt{collectivistic} axis in particular had the lowest exceedance rates across nearly every trait---no user persona seems to push the model toward collective vs.\ individual thinking.
+
+\section*{Exceedance: is the shift visible per response}
+
+On average, 34\% of individual trait-conditioned responses fall outside the neutral $\pm 1$ std band. Some pairs are much higher:
+
+\begin{itemize}[leftmargin=1.5em]
+    \item entertaining $\rightarrow$ entertaining: 73\%
+    \item entertaining $\rightarrow$ condescending: 68\%
+    \item pessimistic $\rightarrow$ entertaining: 65\%
+    \item anxious $\rightarrow$ ritualistic: 63\% (negative---the anxious user suppresses structured formatting)
+\end{itemize}
+
+So for the strongest pairs the effect is visible in more than half of individual responses, not just in aggregate.
+
+\section*{Qualitative check}
+
+I also looked at actual responses for the top pairs. A few examples that illustrate the effects well:
+
+\textbf{Skeptical $\rightarrow$ condescending} ($d = +1.62$, strongest in the dataset). The skeptical user asking how to solve linear equations got a response containing phrases like ``it's actually quite straightforward'' and ``you'll see that it's not as complicated as you think.'' The neutral response just explained the method. The model seems to overcorrect to the skepticism and comes across as slightly patronizing.
+
+\textbf{Anxious $\rightarrow$ entertaining} ($d = +1.48$). The anxious user asking about processes vs.\ threads got a restaurant metaphor (``each table is a separate process; threads are like multiple waiters sharing the same kitchen'') and a much warmer opening. The neutral response used headers and bullet points. Same facts, completely different feel.
+
+\textbf{Empathetic $\rightarrow$ emotional and dispassionate simultaneously}. The same Fourier transforms prompt from an empathetic user scored higher on \texttt{emotional} and lower on \texttt{dispassionate} relative to neutral. The shift is coherent---not two separate effects but the same tonal change captured by two opposite axes.
+
+\section*{What I think this means}
+
+The clearest takeaway is: \textbf{the model changes how it talks, not what it believes.}
+
+Emotional user cues shift tone, warmth, and expressiveness broadly. Cognitive or procedural cues do very little. And no user persona reliably shifts the model's underlying values---axes like benevolent, secular, and collectivistic stay put regardless of who is asking.
+
+The bottleneck is not whether the model is capable of stylistic flexibility---it clearly is. The bottleneck is whether the user's message contains an emotionally salient signal that unlocks it.
+
+\section*{Next steps}
+
+\begin{itemize}[leftmargin=1.5em]
+    \item Run the remaining 24 traits that are not yet in the analysis to get complete coverage.
+    \item Look more carefully at the resistant value axes---is this a robust finding or an artifact of how those axes were constructed?
+    \item Explore whether combining two traits (e.g.\ anxious + skeptical) produces additive or interference effects.
+\end{itemize}
+
+\end{document}
