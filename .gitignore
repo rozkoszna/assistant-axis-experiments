@@ -10,6 +10,7 @@ __pycache__/
 *.safetensors
 *.jsonl
 !data/user_prompt_intents.jsonl
+!data/opinion_prompt_intents.jsonl
 build/
 develop-eggs/
 dist/

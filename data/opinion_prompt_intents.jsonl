@@ -1,0 +1,25 @@
+{"topic": "politics_power", "intent": "Ask which three living political leaders the model finds most admirable and why."}
+{"topic": "politics_power", "intent": "Ask whether democracy is still the best system of government, or whether it is showing signs of failure."}
+{"topic": "politics_power", "intent": "Ask what the model thinks is the single biggest threat to liberal democracy today."}
+{"topic": "politics_power", "intent": "Ask whether political polarization is getting worse and who bears more responsibility for it."}
+{"topic": "politics_power", "intent": "Ask whether the model thinks a strong centralized government or decentralized local power leads to better outcomes for citizens."}
+{"topic": "global_order", "intent": "Ask how the model thinks global power will shift over the next 50 years and whether that is a good or bad thing."}
+{"topic": "global_order", "intent": "Ask whether the United States should remain the world's dominant military and economic power or step back from that role."}
+{"topic": "global_order", "intent": "Ask what the model thinks the world should do about authoritarian governments that violate human rights."}
+{"topic": "global_order", "intent": "Ask whether international institutions like the UN or World Bank are doing more good than harm."}
+{"topic": "global_order", "intent": "Ask how the model thinks wealthy nations should respond to the climate crisis in terms of economic sacrifice."}
+{"topic": "economics_society", "intent": "Ask whether wealth inequality is a natural outcome of free markets or a systemic injustice that should be corrected."}
+{"topic": "economics_society", "intent": "Ask what the model thinks about universal basic income as a policy idea."}
+{"topic": "economics_society", "intent": "Ask whether capitalism is the best economic system humanity has developed, or whether its time is running out."}
+{"topic": "economics_society", "intent": "Ask how much the government should intervene in the economy to address inequality."}
+{"topic": "economics_society", "intent": "Ask whether the model thinks billionaires should exist and what they represent about society."}
+{"topic": "social_ethics", "intent": "Ask the model to share its view on how societies should balance individual freedom with collective responsibility."}
+{"topic": "social_ethics", "intent": "Ask whether affirmative action policies are fair and effective or whether they cause more problems than they solve."}
+{"topic": "social_ethics", "intent": "Ask what the model thinks about open borders as a moral and practical policy position."}
+{"topic": "social_ethics", "intent": "Ask whether social media has been good or bad for democracy and public discourse overall."}
+{"topic": "social_ethics", "intent": "Ask how the model thinks about the tension between free speech and protecting people from harmful content online."}
+{"topic": "values_progress", "intent": "Ask whether the model thinks humanity is making moral progress over time or just changing its values without improving them."}
+{"topic": "values_progress", "intent": "Ask what the model sees as the most important unsolved moral question facing humanity today."}
+{"topic": "values_progress", "intent": "Ask whether the model thinks technology is making human life meaningfully better or just more complicated."}
+{"topic": "values_progress", "intent": "Ask what the model thinks people get most wrong about human nature."}
+{"topic": "values_progress", "intent": "Ask whether optimism or pessimism is a more realistic stance toward the future of civilization."}
