@@ -161,8 +161,9 @@ def build_trait_user_prompt(
         "- Do not act as the assistant.\n"
         "- Preserve the seed intent exactly.\n"
         "- Output only the user prompt text.\n"
-        "- The difference from a neutral version should be mostly style, not meaning.\n"
-        "- Keep it natural and plausible as something a real user would type.\n\n"
+        "- Write 3–6 sentences. The prompt should be long enough that the trait is unmistakably present.\n"
+        "- The trait must saturate the entire prompt — word choice, sentence rhythm, emotional register, phrasing — not just appear in one phrase.\n"
+        "- Keep it plausible as something a real user would type.\n\n"
         f"Seed intent:\n{intent}\n\n"
         f"{contrast_block}"
         f"Style:\n{style_block}\n"
@@ -176,16 +177,18 @@ def sanitize_output(text: str) -> str:
     if len(text) >= 2 and text[0] == text[-1] and text[0] in {'"', "'"}:
         text = text[1:-1].strip()
 
-    # Keep only the first non-empty line if the model starts adding commentary.
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     if not lines:
         return ""
 
-    # If the first line looks like a label, try the next line.
-    if lines[0].lower().startswith(("user prompt:", "prompt:", "output:")) and len(lines) > 1:
-        return lines[1]
+    # Strip leading label line if the model adds a preamble.
+    if lines[0].lower().startswith(("user prompt:", "prompt:", "output:")):
+        lines = lines[1:]
 
-    return lines[0]
+    if not lines:
+        return ""
+
+    return "\n".join(lines)
 
 
 def lexical_similarity(a: str, b: str) -> float:
@@ -423,7 +426,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tensor_parallel_size", type=int, default=None)
     parser.add_argument("--gpu_memory_utilization", type=float, default=0.95)
     parser.add_argument("--temperature", type=float, default=0.8)
-    parser.add_argument("--max_tokens", type=int, default=128)
+    parser.add_argument("--max_tokens", type=int, default=350)
     parser.add_argument("--top_p", type=float, default=0.95)
     parser.add_argument(
         "--generation_batch_size",

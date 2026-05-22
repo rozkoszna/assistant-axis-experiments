@@ -44,7 +44,7 @@ def add_generation_args(parser: argparse.ArgumentParser) -> None:
         default=0.2,
         help="Sampling temperature for stage-4 assistant response generation",
     )
-    parser.add_argument("--max-tokens", type=int, default=128)
+    parser.add_argument("--max-tokens", type=int, default=350)
     parser.add_argument("--top-p", type=float, default=0.95)
     parser.add_argument("--max-model-len", type=int, default=2048)
     parser.add_argument("--tensor-parallel-size", type=int, default=None)
