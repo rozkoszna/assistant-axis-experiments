@@ -25,19 +25,6 @@ runai-rcp-prod submit user-prompts-run \
     hf auth login --token "$HF_TOKEN"
     hf auth whoami
 
-    uv run python project/run_multi_trait_analysis.py \
-      --reuse-models \
-      --user-traits-file data/axis_trait_lists/user_plausible_traits_strict.json \
-      --comparison-name strict_all_axes_llama_100eval_v2 \
-      --intents-file data/user_prompt_intents.jsonl \
-      --num-candidates 12 \
-      --selection-mode top_k \
-      --top-k 4 \
-      --generation-model meta-llama/Llama-3.1-8B-Instruct \
-      --judge-model gpt-4.1-mini \
-      --projection-model meta-llama/Llama-3.1-8B-Instruct \
-      --temperature 0.8 \
-      --axes-dir precomputed_axis/answer_mean/filter_prompt_pair_question_wins_ge_10_require_3_of_5_prompt_pairs \
-      --projection-mode all
+    uv run python project/run_multi_trait_analysis.py --reuse-models --user-traits-file data/axis_trait_lists/user_plausible_traits_strict.json --comparison-name strict_all_axes_llama_100eval_v2 --intents-file data/user_prompt_intents.jsonl --num-candidates 12 --selection-mode top_k --top-k 4 --generation-model meta-llama/Llama-3.1-8B-Instruct --judge-model gpt-4.1-mini --projection-model meta-llama/Llama-3.1-8B-Instruct --temperature 0.8 --axes-dir precomputed_axis/answer_mean/filter_prompt_pair_question_wins_ge_10_require_3_of_5_prompt_pairs --projection-mode all
   ' \
   -p dlab-rozkosz
