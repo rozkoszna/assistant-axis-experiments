@@ -7,6 +7,8 @@ runai-rcp-prod submit user-prompts-run \
   --image nvcr.io/nvidia/pytorch:25.05-py3 \
   --gpu 1 \
   --environment HOME="/home/rozkosz" \
+  --environment USER=rozkosz \
+  --environment LOGNAME=rozkosz \
   --environment OPENAI_API_KEY="$OPENAI_API_KEY" \
   --environment HF_TOKEN="$HF_TOKEN" \
   --run-as-uid 264459 \
