@@ -1,60 +1,32 @@
 """
-Helpers for projecting one user-trait run onto assistant axes.
+Projects one trait run's hidden-state activations onto personality axes.
+
+The core idea
+-------------
+During stage 4 (response generation), the model's internal activations are
+captured while it generates each response — specifically the mean residual-stream
+hidden state over the answer tokens at a chosen layer (answer_mean). These
+activations encode how the model internally represented its response.
+
+Each personality axis is a direction vector in that same activation space,
+precomputed by contrasting responses at opposite poles of a trait (e.g.
+"very organised" vs "very disorganised"). Projecting an activation onto an
+axis is a dot product: a high score means the model's internal state strongly
+aligns with that personality direction; a low/negative score means the opposite.
 
 What this module does
 ---------------------
-This module sits between the saved pipeline artifacts and the final projection
-JSONL file.
+For each selected example × each personality axis it computes:
 
-It does not define the axis math itself. Instead, it:
-- chooses which saved axis files to use
-- reads one run's saved rows
-- projects generation-time internal activations for the neutral and trait
-  sides onto the requested assistant axes
-- writes a flattened projection file
+  projection_score_neutral = dot(neutral_answer_mean[layer], axis_vector)
+  projection_score_trait   = dot(trait_answer_mean[layer],   axis_vector)
+  projection_delta         = projection_score_trait - projection_score_neutral
 
-What goes in
-------------
-This module handles one user-trait run at a time.
+The delta is the key number: how much does the user trait shift the model's
+responses along this personality axis compared to a neutral user?
 
-Its inputs are typically:
-- a selected/responses file for one run
-- optionally, a saved activation file for that same run
-- one or more assistant axis files
-
-Important: projection uses model internals, not raw text.
-The projected vectors are hidden-state activations (`answer_mean`) captured
-during assistant response generation.
-
-Each row is still a matched pair:
-- neutral side
-- trait-conditioned side
-
-What it requires
-----------------
-Projection now expects saved generation-time activations from:
-- `activations/<run_name>.pt`
-
-If that activation file is missing, it should error.
-
-What comes out
---------------
-The output is a flattened JSONL file with one row per:
-- [selected example x assistant axis]
-
-So one run can produce many projection rows because:
-- the user trait stays fixed
-- the assistant axis changes row by row
-
-Neutral side
-------------
-The neutral side is the matched baseline from the same run.
-
-That is why this module can also write:
-- `projections/<run_name>__neutral.jsonl`
-
-This is not a separate neutral experiment. It is the neutral view of the same
-run across the same assistant axes.
+Inputs  → responses JSONL (stage 4) + activations .pt (stage 4) + axis .pt files
+Output  → projections JSONL with N_examples × N_axes rows, one per combination
 """
 
 

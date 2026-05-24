@@ -1,4 +1,19 @@
 #!/usr/bin/env python3
+"""
+Line plot: stability of one trait × axis pair across pipeline runs.
+
+Shows mean projection score per run (line + dots) with a vertical spike
+for the min–max range of scores within each run. Use this as a noise diagnostic
+after running measure_trait_axis_variation — if the min–max spikes are large or
+the mean jumps around across runs, the result for this trait × axis is not stable
+enough to trust.
+
+NOTE: requires per_run_summary.jsonl produced by measure_trait_axis_variation.py.
+      No such data exists yet — run that script first.
+
+Input:  per_run_summary.jsonl  (one row per pipeline run, fields: run_name, mean, min, max)
+Output: one PNG
+"""
 from __future__ import annotations
 
 import argparse
@@ -33,7 +48,7 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 def main() -> None:
-    """Plot each run's mean score plus its within-run min/max range."""
+    """Plot each run's mean projection score and its within-run min–max spread."""
     args = parse_args()
 
     rows = load_jsonl(Path(args.input))
@@ -48,7 +63,10 @@ def main() -> None:
     x = list(range(len(rows)))
 
     plt.figure(figsize=(12, 6))
+    # Line connects run means so drift across runs is easy to spot.
     plt.plot(x, means, marker="o", label="mean score")
+    # Vertical spikes show the spread of individual scores within each run.
+    # Tall spikes = high within-run variance; unstable even for a single run.
     plt.vlines(x, mins, maxs, alpha=0.6, label="min–max range")
 
     plt.axhline(0.0, linewidth=1)

@@ -1,4 +1,13 @@
 #!/usr/bin/env python3
+"""
+For each personality axis, find the user traits that produce the most extreme
+projection scores (most positive and most negative), and plot them as a bar chart
+against a neutral baseline.
+
+One PNG is saved per axis to --output-dir. This is useful for a quick sanity check:
+if a trait pushes the model strongly in the expected direction on a given axis,
+the axis and the trait list are working as intended.
+"""
 from __future__ import annotations
 
 import argparse
@@ -10,6 +19,7 @@ import matplotlib.pyplot as plt
 
 import sys
 
+# Allow importing from project/plots/plot_utils regardless of where the script is invoked from.
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 PROJECT_ROOT = REPO_ROOT / "project"
 for search_path in (REPO_ROOT, PROJECT_ROOT):
@@ -35,11 +45,11 @@ def parse_args() -> argparse.Namespace:
         choices=["mean_delta", "variance_gap", "std_gap", "global_delta"],
         default="mean_delta",
         help=(
-            "How to rank traits before taking top-k extremes: "
-            "mean_delta (trait-neutral mean shift), "
-            "variance_gap (trait variance - neutral variance), "
-            "std_gap (trait std - neutral std), "
-            "global_delta (trait mean score - one global neutral mean for the axis)."
+            "How to rank traits before taking top-k extremes. "
+            "mean_delta: per-trait (score_trait - score_neutral), captures average shift caused by the trait. "
+            "global_delta: trait mean - one shared neutral mean for the whole axis, ignores per-example pairing. "
+            "variance_gap / std_gap: how much more variable trait responses are vs neutral — useful for detecting "
+            "traits that destabilise the model rather than shift it in one direction."
         ),
     )
     parser.add_argument("--output-dir", type=str, required=True, help="Directory for per-axis PNGs")
@@ -47,6 +57,12 @@ def parse_args() -> argparse.Namespace:
 
 
 def infer_trait(row: dict[str, Any], input_path: Path) -> str | None:
+    """Return the user trait label for a projection row.
+
+    Newer output files store the trait directly in the row. Older outputs
+    encoded the trait in the directory structure (…/user_prompts/<trait>/…),
+    so we fall back to path parsing when the field is missing.
+    """
     trait = row.get("trait")
     if isinstance(trait, str) and trait.strip():
         return trait.strip()
@@ -106,7 +122,10 @@ def main() -> None:
 
     for axis in sorted(by_axis_trait_delta.keys()):
         stats_rows: list[dict[str, Any]] = []
-        # One neutral baseline per axis, aggregated across all examples/traits.
+
+        # Neutral baseline: pool all neutral scores across every trait for this axis.
+        # A single shared baseline makes it easy to see whether any trait actually
+        # shifts the model — bars above/below the dashed line are meaningful.
         all_neutral_values: list[float] = []
         for neutral_values in by_axis_trait_neutral_score[axis].values():
             all_neutral_values.extend(neutral_values)
@@ -124,6 +143,7 @@ def main() -> None:
                 {
                     "trait": trait,
                     "count": len(values),
+                    # Per-example delta (trait score − its paired neutral score).
                     "mean_delta": delta_stats["mean"],
                     "std_delta": delta_stats["std"],
                     "variance_delta": delta_stats["variance"],
@@ -132,14 +152,18 @@ def main() -> None:
                     "mean_neutral_score": neutral_stats["mean"],
                     "std_neutral_score": neutral_stats["std"],
                     "variance_neutral_score": neutral_stats["variance"],
+                    # How much more spread out trait responses are vs neutral responses.
                     "variance_gap": trait_stats["variance"] - neutral_stats["variance"],
                     "std_gap": trait_stats["std"] - neutral_stats["std"],
+                    # Unpaired: trait mean vs the single pooled neutral mean for this axis.
                     "global_delta": trait_stats["mean"] - neutral_mean,
                 }
             )
         if not stats_rows:
             continue
 
+        # Select the top-K most positive and top-K most negative traits by the chosen metric,
+        # then lay them out left-to-right (negative → positive) so the plot reads intuitively.
         rank_key = args.rank_by
         pos = sorted(stats_rows, key=lambda item: item[rank_key], reverse=True)[: args.top_k]
         neg = sorted(stats_rows, key=lambda item: item[rank_key])[: args.top_k]
@@ -154,6 +178,8 @@ def main() -> None:
         width = max(10, 0.9 * len(selected))
         fig, ax = plt.subplots(figsize=(width, 5))
         x = list(range(len(labels)))
+        # Red = traits that push the model toward the negative pole of the axis,
+        # green = traits that push it toward the positive pole.
         trait_colors = ["#d95f02"] * len(neg) + ["#1b9e77"] * len(pos)
         ax.bar(
             x,
@@ -169,6 +195,8 @@ def main() -> None:
         ax.set_xticklabels(labels, rotation=35, ha="right")
         ax.set_ylabel("Mean projection score")
 
+        # Dashed line = pooled neutral mean; shaded band = ±1 std of neutral responses.
+        # Bars outside the band indicate a meaningful shift caused by the user trait.
         ax.axhline(
             neutral_mean,
             color="#4e79a7",

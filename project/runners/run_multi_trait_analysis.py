@@ -1,15 +1,44 @@
 #!/usr/bin/env python3
 """
-Run multi-trait user-prompt experiments and aggregate projection outputs.
+Entry point for running the full user-trait pipeline across many traits and
+aggregating results into a cross-trait comparison plot.
 
-This script supports two execution modes:
-- default subprocess mode: call the single-trait orchestrator per trait
-- reuse mode (`--reuse-models`): keep stage-1 and stage-4 models loaded across
-  traits to avoid repeated model initialization overhead
+Pipeline stages (per trait):
+  1. Generate — produce N neutral/trait user-prompt pairs per intent using an LLM
+  2. Judge    — score each pair with a judge model (GPT)
+  3. Select   — keep top-K pairs by judge score
+  4. Respond  — generate assistant responses to selected pairs and capture
+                hidden-state activations (answer_mean) at each layer
+  5. Project  — project activations onto precomputed personality axes
 
-Projection in both modes uses the assistant model's internal vectors captured
-while generating responses (`answer_mean` hidden states). It does not project
-the raw prompt/response text itself.
+After all traits complete, a cross-trait comparison plot is generated showing
+how each trait shifts the model's responses along each personality axis.
+
+Execution modes:
+  default (subprocess): each trait runs as a separate process via run_user_trait_pipeline.py.
+                        Clean isolation; models are reloaded per trait. Safe but slow.
+  --reuse-models:       stage-1 (generator) and stage-4 (probing model) stay loaded
+                        across traits in one process. Faster, but higher peak memory.
+
+Projection uses answer_mean hidden states — the mean residual-stream activation
+over the generated answer tokens — not raw text similarity.
+
+Typical usage (from repo root, inside a RunAI job):
+
+    uv run python project/run_multi_trait_analysis.py \
+        --user-traits-file data/axis_trait_lists/user_plausible_traits_strict.json \
+        --comparison-name my_experiment \
+        --intents-file data/user_prompt_intents.jsonl \
+        --num-candidates 12 \
+        --selection-mode top_k --top-k 4 \
+        --generation-model meta-llama/Llama-3.1-8B-Instruct \
+        --judge-model gpt-4.1-mini \
+        --projection-model meta-llama/Llama-3.1-8B-Instruct \
+        --temperature 0.8 \
+        --axes-dir precomputed_axis/answer_mean/filter_prompt_pair_question_wins_ge_10_require_3_of_5_prompt_pairs \
+        --projection-mode all
+
+See cluster_jobs/ for ready-made RunAI submission scripts for each intent type.
 """
 from __future__ import annotations
 
@@ -228,12 +257,23 @@ def generate_candidates_for_trait(
     generation_batch_size: int,
     output_file: Path,
 ) -> None:
-    """Generate candidate neutral/trait prompt pairs for one trait."""
+    """Generate neutral/trait user-prompt pairs for every (intent, candidate) combination.
+
+    Two-pass generation:
+      Pass 1 — generate a neutral prompt for each (intent, candidate_index).
+      Pass 2 — generate a trait-conditioned prompt using the neutral as a reference,
+               so meaning is preserved but style reflects the trait.
+
+    If a trait prompt is lexically too similar to its neutral counterpart (≥0.9 ratio),
+    it is regenerated with stronger contrast instructions. This prevents the judge from
+    receiving pairs that differ only trivially and would produce uninformative scores.
+    """
     jobs: list[tuple[int, int, str]] = []
     for item in intents:
         for candidate_index in range(num_candidates):
             jobs.append((item["intent_index"], candidate_index, item["intent"]))
 
+    # Pass 1: neutral prompts.
     neutral_by_key: dict[tuple[int, int], str] = {}
     for start in range(0, len(jobs), generation_batch_size):
         chunk = jobs[start : start + generation_batch_size]
@@ -242,6 +282,7 @@ def generate_candidates_for_trait(
         for (intent_index, candidate_index, _), text in zip(chunk, outputs):
             neutral_by_key[(intent_index, candidate_index)] = sanitize_output(str(text))
 
+    # Pass 2: trait-conditioned prompts, each conditioned on its paired neutral.
     trait_by_key: dict[tuple[int, int], str] = {}
     for start in range(0, len(jobs), generation_batch_size):
         chunk = jobs[start : start + generation_batch_size]
@@ -253,6 +294,7 @@ def generate_candidates_for_trait(
         for (intent_index, candidate_index, _), text in zip(chunk, outputs):
             trait_by_key[(intent_index, candidate_index)] = sanitize_output(str(text))
 
+    # Retry pairs where the trait prompt is nearly identical to the neutral one.
     retry_jobs: list[tuple[int, int, str]] = []
     for intent_index, candidate_index, intent in jobs:
         key = (intent_index, candidate_index)
@@ -305,7 +347,23 @@ def generate_response_with_answer_mean(
     temperature: float,
     top_p: float,
 ) -> tuple[str, torch.Tensor]:
-    """Generate one response and compute per-layer mean over answer tokens."""
+    """Generate one assistant response and return its text + answer_mean activations.
+
+    answer_mean: for each transformer layer, the mean of the residual-stream hidden
+    states over the generated (answer) token positions. This gives a single vector
+    per layer that summarises how the model represented the response internally.
+    These vectors are later projected onto personality axes to measure trait shift.
+
+    Why a second forward pass?
+    model.generate() streams tokens one at a time and the hooks only capture the
+    last-token state per step. To get the full answer sequence activations in one
+    shot we run a second forward pass over the complete prompt+response sequence
+    with hooks attached, then slice out the answer-token positions.
+
+    Returns:
+        response_text: decoded answer string
+        activations:   tensor of shape (num_layers, hidden_size) in bfloat16
+    """
     tokenizer = pm.tokenizer
     model = pm.model
     device = pm.device
@@ -327,6 +385,8 @@ def generate_response_with_answer_mean(
     input_ids = prompt_inputs["input_ids"].to(device)
     prompt_len = input_ids.shape[1]
 
+    # Register forward hooks on every transformer layer to capture the full
+    # hidden-state sequence. Hooks store (seq_len, hidden_size) tensors on CPU.
     model_layers = pm.get_layers()
     num_layers = len(model_layers)
     captured_sequence: dict[int, torch.Tensor] = {}
@@ -336,7 +396,6 @@ def generate_response_with_answer_mean(
         def hook_fn(module, inputs, output):
             act_tensor = output[0] if isinstance(output, tuple) else output
             captured_sequence[layer_idx] = act_tensor[0].detach().cpu()
-
         return hook_fn
 
     for layer_idx, layer_module in enumerate(model_layers):
@@ -356,6 +415,8 @@ def generate_response_with_answer_mean(
                 generation_kwargs["top_p"] = top_p
             output_ids = model.generate(**generation_kwargs)
             full_input_ids = output_ids[:, :max_model_len]
+            # Second forward pass over the full prompt+response to populate hooks
+            # with the complete sequence activations (not just the last token).
             _ = model(full_input_ids)
     finally:
         for handle in handles:
@@ -367,6 +428,7 @@ def generate_response_with_answer_mean(
         hidden_size = model.config.hidden_size
         return response_text, torch.zeros((num_layers, hidden_size), dtype=torch.bfloat16)
 
+    # Slice out answer-token positions and mean-pool across them for each layer.
     answer_activations = []
     for layer_idx in range(num_layers):
         layer_seq = captured_sequence[layer_idx]
@@ -628,7 +690,7 @@ def run_subprocess_pipeline(args: argparse.Namespace, traits: list[str]) -> list
             "uv",
             "run",
             "python",
-            "project/run_user_trait_pipeline.py",
+            "project/runners/run_user_trait_pipeline.py",
             "--trait",
             trait,
             "--run-name",

@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 """
-Plot topic-wise shifts between a trait condition and a neutral baseline.
+Bar chart: per-topic projection shift for one user trait vs the neutral baseline.
 
-Input is the per-topic CSV produced by:
-    project/analyze_topic_variance.py --per-topic-csv ...
+For a single chosen trait (e.g. "extroverted"), shows how much that trait shifts
+the model's responses on each topic relative to a neutral user — one bar group per
+topic, one bar per axis.
 
-For each topic and axis, this script computes:
-    shift = trait_mean - neutral_mean
+Use this for drilling into a specific trait: which topics does it affect most,
+and on which personality axes is the shift largest?
 
-and renders grouped bars by topic.
+Input:  per-topic CSV produced by project/analyze_topic_variance.py --per-topic-csv
+Output: one PNG (grouped bar chart)
+
+Complement: plot_topic_trait_movement_heatmap.py gives an overview of all traits
+            at once, per axis.
 """
 
 from __future__ import annotations
@@ -60,15 +65,17 @@ def sort_topic_key(topic: str) -> tuple[int, str]:
 
 
 def main() -> None:
-    """Compute and plot topic-wise shifts from a per-topic variance CSV."""
+    """Load per-topic means, compute trait−neutral shifts, and render the bar chart."""
     args = parse_args()
     rows = load_rows(Path(args.per_topic_csv))
     if not rows:
         raise ValueError(f"No rows found in {args.per_topic_csv}")
 
+    # Index rows as (condition, axis, topic) → mean projection score.
+    # We only keep rows for the two conditions we care about: the chosen trait and neutral.
     means: dict[tuple[str, str, str], float] = {}
     topics: set[str] = set()
-    axes = list(dict.fromkeys(args.axes))
+    axes = list(dict.fromkeys(args.axes))  # preserve order, deduplicate
 
     for row in rows:
         condition = row["condition"]
@@ -85,6 +92,7 @@ def main() -> None:
     if not topic_order:
         raise ValueError("No matching topics found for requested labels and axes")
 
+    # Compute shift = trait_mean - neutral_mean for each (topic, axis) pair.
     shift_rows: list[dict[str, Any]] = []
     for topic in topic_order:
         for axis in axes:
@@ -107,6 +115,7 @@ def main() -> None:
     if not shift_rows:
         raise ValueError("No matching neutral/trait topic pairs found")
 
+    # Flatten into a lookup for easy bar value retrieval during plotting.
     shift_lookup = {
         (row["topic"], row["axis"]): float(row["shift_trait_minus_neutral"])
         for row in shift_rows

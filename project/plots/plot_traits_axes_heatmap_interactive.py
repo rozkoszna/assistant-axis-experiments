@@ -1,4 +1,25 @@
 #!/usr/bin/env python3
+"""
+Interactive heatmap (HTML): user traits × projection axes.
+
+Same layout as plot_traits_axes_heatmap.py but rendered with Plotly as a
+self-contained HTML file — hover over any cell to see the exact value,
+zoom in, and pan. Use this when you need to explore a large trait × axis
+matrix where the static PNG becomes too dense to read.
+
+Rows    = user traits (one input JSONL file per trait)
+Columns = personality axes
+Colour  = chosen metric, symmetric around zero (red = positive, blue = negative)
+
+Metric choices:
+  delta   — trait_score - neutral_score  (how much the trait shifts the model)
+  trait   — raw projection score under the trait condition
+  neutral — raw projection score under the neutral condition
+
+Requires: plotly  (pip install plotly)
+Input:    one projection JSONL per trait run
+Output:   one standalone HTML file
+"""
 from __future__ import annotations
 
 import argparse
@@ -31,6 +52,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def metric_key(metric: str) -> str:
+    """Map the short metric name to the JSONL field name."""
     if metric == "delta":
         return "projection_delta_trait_minus_neutral"
     if metric == "trait":
@@ -39,6 +61,7 @@ def metric_key(metric: str) -> str:
 
 
 def collect_means(rows: list[dict[str, Any]], value_key: str) -> dict[str, float]:
+    """Return mean value per axis for one trait run."""
     by_axis: dict[str, list[float]] = {}
     for row in rows:
         axis = row.get("projection_trait")
@@ -49,6 +72,7 @@ def collect_means(rows: list[dict[str, Any]], value_key: str) -> dict[str, float
 
 
 def axis_intersection(series: list[dict[str, float]]) -> list[str]:
+    """Return only axes present in every trait run, so the matrix has no gaps."""
     if not series:
         return []
     shared = set(series[0].keys())
@@ -88,6 +112,7 @@ def main() -> None:
         raise ValueError("No shared axes found across inputs")
 
     if args.top_k_axes is not None and args.axis_filter is None:
+        # Rank axes by average absolute value across all traits, keep the strongest K.
         strengths = []
         for axis in axes:
             avg_abs = float(np.mean([abs(run[axis]) for run in run_means]))
@@ -96,6 +121,7 @@ def main() -> None:
         axes = [axis for axis, _ in strengths[: args.top_k_axes]]
 
     z = np.array([[run[axis] for axis in axes] for run in run_means], dtype=float)
+    # Symmetric colour scale: zero (no shift) is white; direction is readable.
     vmax = float(np.nanmax(np.abs(z))) if z.size else 1.0
     if vmax == 0.0:
         vmax = 1.0

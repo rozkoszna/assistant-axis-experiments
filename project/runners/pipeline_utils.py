@@ -1,3 +1,11 @@
+"""
+Shared CLI argument groups, path conventions, and axis-loading helpers used
+across all pipeline runner scripts (run_user_trait_pipeline, run_multi_trait_analysis,
+run_threshold_band_analysis).
+
+Keeping argument definitions here means every runner exposes the same flags
+with the same defaults, so outputs stay comparable across runs.
+"""
 from __future__ import annotations
 
 import argparse
@@ -9,6 +17,7 @@ import torch
 from io_utils import load_trait_list
 
 
+# Defaults used across all runners. Change here to affect every entry point.
 DEFAULT_GEN_MODEL = "meta-llama/Llama-3.1-8B-Instruct"
 DEFAULT_JUDGE_MODEL = "gpt-4.1-mini"
 DEFAULT_PROJECTION_MODEL = DEFAULT_GEN_MODEL
@@ -24,7 +33,13 @@ def run_cmd(cmd: list[str], *, cwd: Path) -> None:
 
 
 def add_generation_args(parser: argparse.ArgumentParser) -> None:
-    """Attach shared generation-model CLI arguments to a parser."""
+    """Attach shared generation-model CLI arguments to a parser.
+
+    Covers stage-1 (prompt generation) and stage-4 (response generation) settings.
+    Note: --temperature controls stage-1 prompt generation; --response-temperature
+    controls stage-4 assistant response generation — they are intentionally separate
+    because prompt diversity benefits from higher temperature than response generation.
+    """
     parser.add_argument("--intents-file", type=str, default=DEFAULT_INTENTS_FILE)
     parser.add_argument("--generation-model", type=str, default=DEFAULT_GEN_MODEL)
     parser.add_argument("--judge-model", type=str, default=DEFAULT_JUDGE_MODEL)
@@ -66,7 +81,15 @@ def add_selection_args(parser: argparse.ArgumentParser) -> None:
 
 
 def add_judge_args(parser: argparse.ArgumentParser) -> None:
-    """Attach shared LLM-judge CLI arguments to a parser."""
+    """Attach shared LLM-judge CLI arguments to a parser.
+
+    Weights control how the three judge scores are combined into final_score:
+      final_score = neutral_weight * neutral_score
+                  + trait_weight  * trait_score
+                  + pair_weight   * pair_score
+    Pair weight is highest by default because a well-matched contrastive pair
+    is the most important property for a clean experiment.
+    """
     parser.add_argument("--judge-max-tokens", type=int, default=16)
     parser.add_argument("--requests-per-second", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=50)
@@ -131,18 +154,23 @@ def add_plot_args(parser: argparse.ArgumentParser) -> None:
 
 
 def build_trait_output_paths(repo_root: Path, trait: str, run_name: str) -> dict[str, Path]:
-    """Return the standard output paths used by one trait/run pipeline execution."""
+    """Return the standard output paths for one trait/run pipeline execution.
+
+    All artifacts for a run live under outputs/user_prompts/<trait>/<stage>/<run_name>.
+    The run_name encodes both the comparison name and the trait, so files from
+    different experiments don't collide inside the same trait directory.
+    """
     trait_dir = repo_root / "outputs" / "user_prompts" / trait
     return {
         "trait_dir": trait_dir,
-        "candidates_file": trait_dir / "candidates" / f"{run_name}.jsonl",
-        "judged_file": trait_dir / "judged" / f"{run_name}.jsonl",
-        "selected_file": trait_dir / "selected" / f"{run_name}.jsonl",
-        "responses_file": trait_dir / "responses" / f"{run_name}.jsonl",
-        "activations_file": trait_dir / "activations" / f"{run_name}.pt",
-        "projections_file": trait_dir / "projections" / f"{run_name}.jsonl",
+        "candidates_file": trait_dir / "candidates" / f"{run_name}.jsonl",   # stage 1 output
+        "judged_file":     trait_dir / "judged"     / f"{run_name}.jsonl",   # stage 2 output
+        "selected_file":   trait_dir / "selected"   / f"{run_name}.jsonl",   # stage 3 output
+        "responses_file":  trait_dir / "responses"  / f"{run_name}.jsonl",   # stage 4 output
+        "activations_file":trait_dir / "activations"/ f"{run_name}.pt",      # stage 4 activations
+        "projections_file":trait_dir / "projections"/ f"{run_name}.jsonl",   # stage 5 output
         "neutral_projections_file": trait_dir / "projections" / f"{run_name}__neutral.jsonl",
-        "plot_file": trait_dir / "plots" / f"{run_name}.png",
+        "plot_file":       trait_dir / "plots"      / f"{run_name}.png",
     }
 
 
@@ -186,7 +214,13 @@ def resolve_axis_files(
 
 
 def load_axis_vector(path: Path, layer: int) -> dict[str, object]:
-    """Load one saved axis file and return the normalized vector for one layer."""
+    """Load one axis .pt file and return the unit-normalised direction vector for one layer.
+
+    Axis files may store either a 1-D vector (single layer) or a 2-D tensor
+    (one vector per layer). In the latter case, `layer` selects the row.
+    The vector is L2-normalised before returning so dot-product projection
+    gives a cosine-like score in [-1, 1].
+    """
     data = torch.load(path, map_location="cpu", weights_only=False)
 
     if "vector" not in data:
@@ -214,5 +248,5 @@ def load_axis_vector(path: Path, layer: int) -> dict[str, object]:
         "activation_position": data.get("activation_position", "answer_mean"),
         "filter_name": data.get("filter_name"),
         "layer": layer,
-        "axis": layer_vector / norm,
+        "axis": layer_vector / norm,  # unit vector used for dot-product projection
     }

@@ -1,3 +1,9 @@
+"""
+Shared utilities for all plot_*.py scripts.
+
+Kept intentionally minimal — only helpers that are genuinely reused across
+multiple plot scripts live here. Per-script logic stays in the script itself.
+"""
 from __future__ import annotations
 
 import csv
@@ -6,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 def aggregate(values: list[float], mode: str) -> float:
-    """Aggregate numeric values with the requested summary statistic."""
+    """Return mean or median of values. Used when callers want to swap aggregation mode via CLI."""
     if not values:
         raise ValueError("Cannot aggregate empty list")
     if mode == "mean":
@@ -22,7 +28,12 @@ def aggregate(values: list[float], mode: str) -> float:
 
 
 def infer_run_label(path: Path) -> str:
-    """Infer a human-readable series label from a standard output path."""
+    """Infer a human-readable label from a projection output path.
+
+    Newer outputs store the trait name in the JSONL rows directly. Older outputs
+    encoded it in the directory structure as .../user_prompts/<trait>/..., so we
+    fall back to extracting it from the path. If neither applies, the file stem is used.
+    """
     parts = path.parts
     if "user_prompts" in parts:
         idx = parts.index("user_prompts")
