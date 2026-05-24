@@ -35,6 +35,8 @@
 
 set -euo pipefail
 
+runai-rcp-prod delete job identity-run -p dlab-rozkosz || true
+
 runai-rcp-prod submit identity-run \
   --image nvcr.io/nvidia/pytorch:25.05-py3 \
   --gpu 1 \

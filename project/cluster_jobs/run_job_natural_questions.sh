@@ -36,6 +36,8 @@
 
 set -euo pipefail
 
+runai-rcp-prod delete job user-prompts-run -p dlab-rozkosz || true
+
 runai-rcp-prod submit user-prompts-run \
   --image nvcr.io/nvidia/pytorch:25.05-py3 \
   --gpu 1 \
