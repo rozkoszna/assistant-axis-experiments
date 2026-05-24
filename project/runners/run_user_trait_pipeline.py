@@ -113,7 +113,7 @@ from pipeline_utils import (
 from projection_runner import run_projection_for_selected
 
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 def parse_args() -> argparse.Namespace:
