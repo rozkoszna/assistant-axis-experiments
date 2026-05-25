@@ -370,9 +370,12 @@ def main() -> None:
         )
 
     candidates_file = Path(args.candidates_file)
-    trait_name = candidates_file.parent.parent.name
-    base_dir = Path("outputs") / "user_prompts" / trait_name
-    output_file = base_dir / "judged" / Path(args.output_file).name
+    given = Path(args.output_file)
+    if given.is_absolute():
+        output_file = given
+    else:
+        trait_name = candidates_file.parent.parent.name
+        output_file = Path("outputs") / "user_prompts" / trait_name / "judged" / given.name
 
     rows = load_candidates(candidates_file)
     logger.info("Loaded %s candidate pairs from %s", len(rows), candidates_file)
