@@ -686,6 +686,11 @@ def run_subprocess_pipeline(args: argparse.Namespace, traits: list[str]) -> list
     projection_files: list[Path] = []
     for trait in traits:
         run_name = build_trait_run_name(trait=trait, comparison_name=args.comparison_name, run_suffix=args.run_suffix)
+        projection_file = get_projection_output_path(REPO_ROOT, trait, run_name)
+        if projection_file.exists():
+            print(f"\n=== Trait: {trait} ({run_name}) — skipping, projections already exist ===")
+            projection_files.append(projection_file)
+            continue
         cmd = [
             "uv",
             "run",
