@@ -592,16 +592,14 @@ def build_comparison_plot_cmd(args: argparse.Namespace, projection_files: list[P
             "--output",
             str(output_path),
         ]
-    output_path = output_dir / f"{args.comparison_name}__many_axes.png"
+    output_path = output_dir / f"{args.comparison_name}__many_axes.html"
     return [
         "uv",
         "run",
         "python",
-        str(REPO_ROOT / "project/plots/plot_many_traits_many_axes.py"),
+        str(REPO_ROOT / "project/plots/plot_traits_axes_heatmap_interactive.py"),
         "--inputs",
         *[str(p) for p in projection_files],
-        "--aggregate",
-        args.aggregate,
         "--top-k-axes",
         str(args.top_k_axes),
         "--output",
