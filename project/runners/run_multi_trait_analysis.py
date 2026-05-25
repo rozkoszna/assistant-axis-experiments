@@ -103,6 +103,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--comparison-output-dir", type=str, default="outputs/analysis")
     parser.add_argument("--aggregate", choices=["mean", "median"], default="mean")
     parser.add_argument("--top-k-axes", type=int, default=20)
+    parser.add_argument("--min-selected", type=int, default=0)
+    parser.add_argument("--max-retries", type=int, default=5)
     return parser.parse_args()
 
 
@@ -774,6 +776,8 @@ def run_subprocess_pipeline(args: argparse.Namespace, traits: list[str]) -> list
             cmd += ["--no-dedupe"]
         if args.with_per_trait_plots:
             cmd += ["--with-plot", "--plot-top-k", str(args.plot_top_k)]
+        if args.min_selected > 0:
+            cmd += ["--min-selected", str(args.min_selected), "--max-retries", str(args.max_retries)]
 
         run_cmd(cmd, cwd=REPO_ROOT)
         projection_file = get_projection_output_path(REPO_ROOT, trait, run_name)
