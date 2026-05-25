@@ -447,8 +447,8 @@ def main() -> None:
         torch.manual_seed(args.seed)
 
     intents_file = Path(args.intents_file)
-    base_dir = Path("outputs") / "user_prompts" / args.trait
-    output_file = base_dir / "candidates" / Path(args.output_file).name
+    given = Path(args.output_file)
+    output_file = given if given.is_absolute() else Path("outputs") / "user_prompts" / args.trait / "candidates" / given.name
 
     intents = load_intents(intents_file)
     logger.info("Loaded %s intents from %s", len(intents), intents_file)

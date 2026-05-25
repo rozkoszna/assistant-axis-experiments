@@ -186,7 +186,7 @@ def build_generate_cmd(args: argparse.Namespace, candidates_file: Path) -> list[
         "--intents_file",
         args.intents_file,
         "--output_file",
-        candidates_file.name,
+        str(candidates_file),
         "--num_candidates",
         str(args.num_candidates),
         "--generation_batch_size",
