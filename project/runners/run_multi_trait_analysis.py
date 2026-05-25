@@ -634,7 +634,7 @@ def run_reuse_pipeline(args: argparse.Namespace, traits: list[str]) -> list[Path
     try:
         for trait in traits:
             run_name = build_trait_run_name(trait, args.comparison_name, args.run_suffix)
-            paths = build_trait_output_paths(REPO_ROOT, trait, run_name)
+            paths = build_trait_output_paths(REPO_ROOT, trait, run_name, comparison_name=args.comparison_name)
 
             print(f"\n=== Trait: {trait} ({run_name}) ===")
             generate_candidates_for_trait(
@@ -686,7 +686,7 @@ def run_subprocess_pipeline(args: argparse.Namespace, traits: list[str]) -> list
     projection_files: list[Path] = []
     for trait in traits:
         run_name = build_trait_run_name(trait=trait, comparison_name=args.comparison_name, run_suffix=args.run_suffix)
-        projection_file = get_projection_output_path(REPO_ROOT, trait, run_name)
+        projection_file = get_projection_output_path(REPO_ROOT, trait, run_name, comparison_name=args.comparison_name)
         if projection_file.exists():
             print(f"\n=== Trait: {trait} ({run_name}) — skipping, projections already exist ===")
             projection_files.append(projection_file)
@@ -776,9 +776,10 @@ def run_subprocess_pipeline(args: argparse.Namespace, traits: list[str]) -> list
             cmd += ["--with-plot", "--plot-top-k", str(args.plot_top_k)]
         if args.min_selected > 0:
             cmd += ["--min-selected", str(args.min_selected), "--max-retries", str(args.max_retries)]
+        cmd += ["--comparison-name", args.comparison_name]
 
         run_cmd(cmd, cwd=REPO_ROOT)
-        projection_file = get_projection_output_path(REPO_ROOT, trait, run_name)
+        projection_file = get_projection_output_path(REPO_ROOT, trait, run_name, comparison_name=args.comparison_name)
         if not projection_file.exists():
             raise FileNotFoundError(f"Expected projection file not found: {projection_file}")
         projection_files.append(projection_file)

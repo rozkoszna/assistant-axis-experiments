@@ -123,6 +123,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--trait", type=str, required=True, help="Trait name, e.g. confused")
     parser.add_argument("--explanation", type=str, default=None, help="Optional trait explanation")
     parser.add_argument("--run-name", type=str, default=None, help="Optional run name")
+    parser.add_argument("--comparison-name", type=str, default=None, help="Top-level output directory name (e.g. my_experiment). Defaults to run-name.")
     add_generation_args(parser)
     add_selection_args(parser)
     add_judge_args(parser)
@@ -351,7 +352,8 @@ def main() -> None:
 
     # Resolve one stable run name and the canonical output paths used by all stages.
     run_name = make_run_name(args.run_name)
-    paths = build_trait_output_paths(REPO_ROOT, args.trait, run_name)
+    comparison_name = args.comparison_name or run_name
+    paths = build_trait_output_paths(REPO_ROOT, args.trait, run_name, comparison_name=comparison_name)
 
     print_run_summary(args, run_name, paths)
 

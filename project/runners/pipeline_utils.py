@@ -153,30 +153,32 @@ def add_plot_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--plot-top-k", type=int, default=20)
 
 
-def build_trait_output_paths(repo_root: Path, trait: str, run_name: str) -> dict[str, Path]:
+def build_trait_output_paths(
+    repo_root: Path, trait: str, run_name: str, comparison_name: str = "user_prompts"
+) -> dict[str, Path]:
     """Return the standard output paths for one trait/run pipeline execution.
 
-    All artifacts for a run live under outputs/user_prompts/<trait>/<stage>/<run_name>.
-    The run_name encodes both the comparison name and the trait, so files from
-    different experiments don't collide inside the same trait directory.
+    All artifacts live under outputs/<comparison_name>/<trait>/<stage>/<run_name>.
     """
-    trait_dir = repo_root / "outputs" / "user_prompts" / trait
+    trait_dir = repo_root / "outputs" / comparison_name / trait
     return {
         "trait_dir": trait_dir,
-        "candidates_file": trait_dir / "candidates" / f"{run_name}.jsonl",   # stage 1 output
-        "judged_file":     trait_dir / "judged"     / f"{run_name}.jsonl",   # stage 2 output
-        "selected_file":   trait_dir / "selected"   / f"{run_name}.jsonl",   # stage 3 output
-        "responses_file":  trait_dir / "responses"  / f"{run_name}.jsonl",   # stage 4 output
-        "activations_file":trait_dir / "activations"/ f"{run_name}.pt",      # stage 4 activations
-        "projections_file":trait_dir / "projections"/ f"{run_name}.jsonl",   # stage 5 output
+        "candidates_file": trait_dir / "candidates" / f"{run_name}.jsonl",
+        "judged_file":     trait_dir / "judged"     / f"{run_name}.jsonl",
+        "selected_file":   trait_dir / "selected"   / f"{run_name}.jsonl",
+        "responses_file":  trait_dir / "responses"  / f"{run_name}.jsonl",
+        "activations_file":trait_dir / "activations"/ f"{run_name}.pt",
+        "projections_file":trait_dir / "projections"/ f"{run_name}.jsonl",
         "neutral_projections_file": trait_dir / "projections" / f"{run_name}__neutral.jsonl",
         "plot_file":       trait_dir / "plots"      / f"{run_name}.png",
     }
 
 
-def get_projection_output_path(repo_root: Path, trait: str, run_name: str) -> Path:
+def get_projection_output_path(
+    repo_root: Path, trait: str, run_name: str, comparison_name: str = "user_prompts"
+) -> Path:
     """Return the projection JSONL path for a specific trait/run pair."""
-    return build_trait_output_paths(repo_root, trait, run_name)["projections_file"]
+    return build_trait_output_paths(repo_root, trait, run_name, comparison_name)["projections_file"]
 
 
 def resolve_axis_files(
