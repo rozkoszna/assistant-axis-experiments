@@ -1,4 +1,29 @@
 #!/usr/bin/env python3
+"""
+Trait-centric counterpart to analyze_axis_movement_summary.py.
+
+Both scripts read the same projection JSONL files and measure the same thing
+(projection_delta_trait_minus_neutral), but from opposite perspectives:
+
+  analyze_axis_movement_summary  — axis view:  which axes are moved most by traits?
+  analyze_trait_movement_summary — trait view: which traits move axes most broadly?
+
+For each personality axis, this script ranks all traits by their mean delta,
+then scores each trait by how consistently it appears among the top movers:
+
+  top5_count    — how many axes this trait ranked in the top 5 movers
+  top10_count   — how many axes this trait ranked in the top 10 movers
+  abs_mean_sum  — sum of absolute mean deltas across all axes (total influence)
+
+Each metric is computed in three directions (any / positive / negative),
+producing 9 ranked tables saved as CSVs. A trait with a high any_top5_count
+is one that consistently causes large shifts across many axes regardless of direction.
+
+Example:
+  python project/analyze_trait_movement_summary.py \\
+    --inputs outputs/user_prompts/*/projections/my_run.jsonl \\
+    --output-dir outputs/analysis/trait_movers/
+"""
 from __future__ import annotations
 
 import argparse

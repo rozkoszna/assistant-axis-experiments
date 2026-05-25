@@ -1,13 +1,25 @@
 #!/usr/bin/env python3
 """
-Summarize which projection axes are moved the most by user traits.
+Axis-centric counterpart to analyze_trait_movement_summary.py.
 
-For each axis, this script aggregates per-trait mean deltas
-(`projection_delta_trait_minus_neutral`) and reports movement metrics such as:
-- mean absolute shift across traits
-- max absolute shift
-- signed mean shift
-- spread of trait means
+Both scripts read the same projection JSONL files and measure the same thing
+(projection_delta_trait_minus_neutral), but from opposite perspectives:
+
+  analyze_axis_movement_summary  — axis view:  which axes are moved most by traits?
+  analyze_trait_movement_summary — trait view: which traits move axes most broadly?
+
+For each personality axis, aggregates per-trait mean deltas and reports:
+  mean_abs_shift          — average absolute shift across all traits (primary rank key)
+  max_abs_shift           — largest single-trait shift on this axis
+  signed_mean_shift       — net direction: positive means traits push the axis up on average
+  trait_mean_std          — spread of trait means; high std = traits disagree in direction
+  strongest_positive/negative_trait — which trait pulls hardest in each direction
+
+Example:
+  python project/analyze_axis_movement_summary.py \\
+    --inputs outputs/user_prompts/*/projections/my_run.jsonl \\
+    --top-k 20 \\
+    --output-csv outputs/analysis/axis_movement.csv
 """
 
 from __future__ import annotations

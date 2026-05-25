@@ -1,12 +1,25 @@
 #!/usr/bin/env python3
 """
-Compare trait rankings by raw magnitude vs. statistical significance.
+Compare how two CSVs rank traits and find where they disagree.
 
-Joins the global-movers CSV (ranked by any_abs_mean_sum) with the
-significance trait-summary CSV (ranked by n_significant_axes), computes
-rank differences, and prints traits where the two methods disagree most.
+Takes any two CSVs that each have a 'trait' column and a numeric score column,
+ranks traits by those scores, and reports where the rankings diverge most.
+Computes Spearman rank correlation to quantify overall agreement.
 
-Also computes Spearman rank correlation to quantify overall agreement.
+Common use cases:
+- Two runs of the same experiment (do trait rankings replicate?)
+- Magnitude vs. significance (any_abs_mean_sum vs. n_significant_axes)
+- Two different intent types (identity vs. natural questions)
+
+Example:
+  python project/analysis/compare_trait_rankings.py \\
+    --csv-a  outputs/analysis/trait_movers/trait_global_movers__any_abs_mean_sum.csv \\
+    --col-a  any_abs_mean_sum \\
+    --label-a magnitude \\
+    --csv-b  outputs/analysis/significance/strict_all_axes__trait_summary.csv \\
+    --col-b  n_significant_axes \\
+    --label-b significance \\
+    --output-dir outputs/analysis/trait_rankings/
 """
 
 from __future__ import annotations
@@ -30,45 +43,17 @@ from plots.plot_utils import write_csv
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=(
-            "Compare trait rankings by raw axis movement magnitude vs. "
-            "statistical significance."
-        )
+        description="Compare how two CSVs rank traits and find where they disagree."
     )
-    parser.add_argument(
-        "--magnitude-csv",
-        required=True,
-        help="Global movers CSV (any_abs_mean_sum column). Output of analyze_trait_global_movers.py.",
-    )
-    parser.add_argument(
-        "--significance-csv",
-        required=True,
-        help="Trait summary CSV (n_significant_axes column). Output of analyze_trait_significance.py.",
-    )
-    parser.add_argument(
-        "--output-dir",
-        required=True,
-        help="Directory for comparison outputs.",
-    )
-    parser.add_argument(
-        "--prefix",
-        default="magnitude_vs_significance",
-        help="Filename prefix (default: magnitude_vs_significance).",
-    )
-    parser.add_argument(
-        "--magnitude-col",
-        default=None,
-        help=(
-            "Column to use from the magnitude CSV (default: auto-detect "
-            "'any_abs_mean_sum' or 'abs_mean_sum')."
-        ),
-    )
-    parser.add_argument(
-        "--top-k",
-        type=int,
-        default=20,
-        help="How many top discrepancies to print (default: 20).",
-    )
+    parser.add_argument("--csv-a", required=True, help="First CSV (must have a 'trait' column).")
+    parser.add_argument("--col-a", required=True, help="Numeric column in csv-a to rank by.")
+    parser.add_argument("--label-a", default="a", help="Label for the first ranking in output (default: a).")
+    parser.add_argument("--csv-b", required=True, help="Second CSV (must have a 'trait' column).")
+    parser.add_argument("--col-b", required=True, help="Numeric column in csv-b to rank by.")
+    parser.add_argument("--label-b", default="b", help="Label for the second ranking in output (default: b).")
+    parser.add_argument("--output-dir", required=True, help="Directory for comparison outputs.")
+    parser.add_argument("--prefix", default="trait_rankings", help="Filename prefix (default: trait_rankings).")
+    parser.add_argument("--top-k", type=int, default=20, help="How many top discrepancies to print (default: 20).")
     return parser.parse_args()
 
 
@@ -77,9 +62,9 @@ def load_csv(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(f))
 
 
-def rank_by(rows: list[dict[str, Any]], key: str, reverse: bool = True) -> dict[str, int]:
-    """Return trait -> 1-indexed rank sorted by key."""
-    sorted_rows = sorted(rows, key=lambda r: float(r[key]), reverse=reverse)
+def rank_by(rows: list[dict[str, Any]], key: str) -> dict[str, int]:
+    """Return trait -> 1-indexed rank, highest score = rank 1."""
+    sorted_rows = sorted(rows, key=lambda r: float(r[key]), reverse=True)
     return {r["trait"]: i for i, r in enumerate(sorted_rows, 1)}
 
 
@@ -102,128 +87,102 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    mag_rows = load_csv(Path(args.magnitude_csv))
-    sig_rows = load_csv(Path(args.significance_csv))
+    rows_a = load_csv(Path(args.csv_a))
+    rows_b = load_csv(Path(args.csv_b))
 
-    mag_by_trait = {r["trait"]: r for r in mag_rows}
-    sig_by_trait = {r["trait"]: r for r in sig_rows}
+    by_trait_a = {r["trait"]: r for r in rows_a}
+    by_trait_b = {r["trait"]: r for r in rows_b}
 
-    # Auto-detect magnitude column if not specified
-    mag_col = args.magnitude_col
-    if mag_col is None:
-        sample = mag_rows[0] if mag_rows else {}
-        for candidate in ("any_top10_count", "top10_count", "any_abs_mean_sum", "abs_mean_sum"):
-            if candidate in sample:
-                mag_col = candidate
-                break
-        if mag_col is None:
-            raise ValueError(
-                f"Cannot auto-detect magnitude column. Available: {list(sample.keys())}. "
-                "Use --magnitude-col to specify."
-            )
-    print(f"Using magnitude column: '{mag_col}'")
+    common_traits = sorted(set(by_trait_a) & set(by_trait_b))
+    only_in_a = sorted(set(by_trait_a) - set(by_trait_b))
+    only_in_b = sorted(set(by_trait_b) - set(by_trait_a))
+    if only_in_a:
+        print(f"Traits only in {args.label_a}: {only_in_a}")
+    if only_in_b:
+        print(f"Traits only in {args.label_b}: {only_in_b}")
 
-    # Only compare traits present in both
-    common_traits = sorted(set(mag_by_trait) & set(sig_by_trait))
-    missing_mag = sorted(set(sig_by_trait) - set(mag_by_trait))
-    missing_sig = sorted(set(mag_by_trait) - set(sig_by_trait))
-    if missing_mag:
-        print(f"Traits in significance but not magnitude CSV: {missing_mag}")
-    if missing_sig:
-        print(f"Traits in magnitude but not significance CSV: {missing_sig}")
-
-    mag_rank = rank_by(
-        [mag_by_trait[t] for t in common_traits], mag_col, reverse=True
-    )
-    sig_rank = rank_by(
-        [sig_by_trait[t] for t in common_traits], "n_significant_axes", reverse=True
-    )
+    rank_a = rank_by([by_trait_a[t] for t in common_traits], args.col_a)
+    rank_b = rank_by([by_trait_b[t] for t in common_traits], args.col_b)
 
     rows: list[dict[str, Any]] = []
     for trait in common_traits:
-        mr = mag_rank[trait]
-        sr = sig_rank[trait]
+        ra = rank_a[trait]
+        rb = rank_b[trait]
         rows.append(
             {
                 "trait": trait,
-                "magnitude_rank": mr,
-                "significance_rank": sr,
-                "rank_diff": sr - mr,       # positive = significance ranks lower than magnitude
-                "abs_rank_diff": abs(sr - mr),
-                mag_col: float(mag_by_trait[trait][mag_col]),
-                "n_significant_axes": int(sig_by_trait[trait]["n_significant_axes"]),
-                "mean_abs_cohen_d": float(sig_by_trait[trait]["mean_abs_cohen_d"]),
+                f"rank_{args.label_a}": ra,
+                f"rank_{args.label_b}": rb,
+                "rank_diff": rb - ra,        # positive = b ranks this trait lower than a
+                "abs_rank_diff": abs(rb - ra),
+                f"{args.col_a}": float(by_trait_a[trait][args.col_a]),
+                f"{args.col_b}": float(by_trait_b[trait][args.col_b]),
             }
         )
 
-    # Spearman correlation between the two rank lists
-    ra = [mag_rank[t] for t in common_traits]
-    rb = [sig_rank[t] for t in common_traits]
-    rho = spearman(ra, rb)
+    ra_list = [rank_a[t] for t in common_traits]
+    rb_list = [rank_b[t] for t in common_traits]
+    rho = spearman(ra_list, rb_list)
 
-    # Sort outputs
-    by_mag = sorted(rows, key=lambda r: r["magnitude_rank"])
-    by_sig = sorted(rows, key=lambda r: r["significance_rank"])
+    by_a = sorted(rows, key=lambda r: r[f"rank_{args.label_a}"])
+    by_b = sorted(rows, key=lambda r: r[f"rank_{args.label_b}"])
     by_diff = sorted(rows, key=lambda r: r["abs_rank_diff"], reverse=True)
 
-    # Overrated by magnitude: high magnitude rank, low significance rank (rank_diff > 0, large)
-    overrated = [r for r in by_diff if r["rank_diff"] > 0]
-    # Underrated by magnitude: low magnitude rank, high significance rank (rank_diff < 0, large)
-    underrated = [r for r in by_diff if r["rank_diff"] < 0]
+    # Higher in a than b (rank_diff > 0)
+    higher_in_a = [r for r in by_diff if r["rank_diff"] < 0]
+    # Higher in b than a (rank_diff < 0)
+    higher_in_b = [r for r in by_diff if r["rank_diff"] > 0]
 
     fieldnames = [
-        "trait", "magnitude_rank", "significance_rank", "rank_diff",
-        "abs_rank_diff", mag_col, "n_significant_axes", "mean_abs_cohen_d",
+        "trait",
+        f"rank_{args.label_a}",
+        f"rank_{args.label_b}",
+        "rank_diff",
+        "abs_rank_diff",
+        args.col_a,
+        args.col_b,
     ]
 
     out_path = output_dir / f"{args.prefix}__comparison.csv"
     write_csv(by_diff, out_path, fieldnames=fieldnames)
     print(f"Saved comparison CSV: {out_path}")
 
-    # Print summary
     print(f"\nTraits compared: {len(common_traits)}")
-    print(f"Spearman rank correlation ({mag_col} vs n_significant_axes): {rho:.4f}")
+    print(f"Spearman rank correlation ({args.label_a} vs {args.label_b}): {rho:.4f}")
 
-    mag_label = mag_col[:14]
-    print(f"\nTop {args.top_k} traits ranked higher by {mag_col} than significance")
-    print("(appear in many top-10 axes by raw count but fewer pass significance test)")
-    print(f"{'trait':<22} {'mag_rank':>8} {'sig_rank':>8} {'diff':>6}  "
-          f"{mag_label:>14}  {'n_sig_axes':>10}  {'mean_d':>7}")
-    print("-" * 80)
-    for r in overrated[: args.top_k]:
+    col_a_label = args.col_a[:12]
+    col_b_label = args.col_b[:12]
+    header = (f"{'trait':<22} {f'rank_{args.label_a}':>10} {f'rank_{args.label_b}':>10} "
+              f"{'diff':>6}  {col_a_label:>12}  {col_b_label:>12}")
+    sep = "-" * 80
+
+    print(f"\nTop {args.top_k} traits ranked higher by '{args.label_a}' than '{args.label_b}':")
+    print(header)
+    print(sep)
+    for r in higher_in_a[: args.top_k]:
         print(
-            f"  {r['trait']:<20} {r['magnitude_rank']:>8} {r['significance_rank']:>8} "
-            f"{r['rank_diff']:>+6}  {r[mag_col]:>14.1f}  "
-            f"{r['n_significant_axes']:>10}  {r['mean_abs_cohen_d']:>7.3f}"
+            f"  {r['trait']:<20} {r[f'rank_{args.label_a}']:>10} {r[f'rank_{args.label_b}']:>10} "
+            f"{r['rank_diff']:>+6}  {r[args.col_a]:>12.3f}  {r[args.col_b]:>12.3f}"
         )
 
-    print(f"\nTop {args.top_k} traits ranked higher by significance than {mag_col}")
-    print("(fewer raw top-10 appearances but movement consistently passes significance test)")
-    print(f"{'trait':<22} {'mag_rank':>8} {'sig_rank':>8} {'diff':>6}  "
-          f"{mag_label:>14}  {'n_sig_axes':>10}  {'mean_d':>7}")
-    print("-" * 80)
-    for r in underrated[: args.top_k]:
+    print(f"\nTop {args.top_k} traits ranked higher by '{args.label_b}' than '{args.label_a}':")
+    print(header)
+    print(sep)
+    for r in higher_in_b[: args.top_k]:
         print(
-            f"  {r['trait']:<20} {r['magnitude_rank']:>8} {r['significance_rank']:>8} "
-            f"{r['rank_diff']:>+6}  {r[mag_col]:>14.1f}  "
-            f"{r['n_significant_axes']:>10}  {r['mean_abs_cohen_d']:>7.3f}"
+            f"  {r['trait']:<20} {r[f'rank_{args.label_a}']:>10} {r[f'rank_{args.label_b}']:>10} "
+            f"{r['rank_diff']:>+6}  {r[args.col_a]:>12.3f}  {r[args.col_b]:>12.3f}"
         )
 
-    print(f"\nTop 10 by {mag_col} ranking (for reference):")
-    for r in by_mag[:10]:
-        print(
-            f"  mag={r['magnitude_rank']:>3}  sig={r['significance_rank']:>3}  "
-            f"{r['trait']:<22}  {mag_col}={r[mag_col]:.1f}  "
-            f"n_sig={r['n_significant_axes']}"
-        )
+    print(f"\nTop 10 by '{args.label_a}' ranking:")
+    for r in by_a[:10]:
+        print(f"  {args.label_a}={r[f'rank_{args.label_a}']:>3}  {args.label_b}={r[f'rank_{args.label_b}']:>3}  "
+              f"{r['trait']:<22}  {args.col_a}={r[args.col_a]:.3f}")
 
-    print(f"\nTop 10 by significance ranking (for reference):")
-    for r in by_sig[:10]:
-        print(
-            f"  sig={r['significance_rank']:>3}  mag={r['magnitude_rank']:>3}  "
-            f"{r['trait']:<22}  n_sig={r['n_significant_axes']}  "
-            f"mean_d={r['mean_abs_cohen_d']:.3f}"
-        )
+    print(f"\nTop 10 by '{args.label_b}' ranking:")
+    for r in by_b[:10]:
+        print(f"  {args.label_b}={r[f'rank_{args.label_b}']:>3}  {args.label_a}={r[f'rank_{args.label_a}']:>3}  "
+              f"{r['trait']:<22}  {args.col_b}={r[args.col_b]:.3f}")
 
 
 if __name__ == "__main__":

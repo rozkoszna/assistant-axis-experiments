@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
 """
-Statistical significance analysis: which user traits significantly move which axes?
+Statistical significance of every (trait, axis) pair.
 
-For each (user_type, axis) pair, runs a one-sample t-test on
-projection_delta_trait_minus_neutral values and computes Cohen's d.
-Applies Benjamini-Hochberg FDR correction across all (trait, axis) pairs.
+The unit of analysis is a (trait, axis) pair — for each combination, runs a
+one-sample t-test on projection_delta_trait_minus_neutral to ask: is the shift
+caused by this trait on this axis significantly different from zero?
 
-Outputs two tables:
-  Table 1 — all (trait, axis) pairs with p_adjusted, cohen_d, significant flag
-  Table 2 — per-trait summary: n_significant_axes, mean_cohen_d, max_cohen_d, top_axis
+Effect size is measured with Cohen's d. Benjamini-Hochberg FDR correction is
+applied across all pairs jointly so that the false-discovery rate stays controlled
+when testing many combinations at once.
+
+Outputs five tables:
+  Table 1 — all (trait, axis) pairs: p_adjusted, cohen_d, significant flag, direction
+  Table 2 — per-trait summary: how many axes each trait moves significantly
+  Table 3 — per-axis summary: how many traits significantly move each axis
+  Table 4a — distribution: how many traits move exactly N axes significantly
+  Table 4b — distribution: how many axes are moved by exactly N traits significantly
 """
 
 from __future__ import annotations

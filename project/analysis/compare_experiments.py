@@ -1,6 +1,21 @@
 #!/usr/bin/env python3
 """
-Compare two significance experiments side by side.
+Diff two significance experiments to see where they agree or disagree.
+
+Reads the CSVs produced by analyze_trait_axis_significance.py for two runs
+(called "factual" and "opinion" in the CLI flags, but any two experiments work)
+and answers: which (trait, axis) pairs are significant in one condition but not
+the other, and by how much do the effect sizes differ?
+
+Outputs four files:
+  trait_comparison.csv         — per trait: n_significant_axes and mean Cohen's d in
+                                 each experiment, plus the deltas between them
+  axis_comparison.csv          — per axis: n_significant_traits and mean Cohen's d in
+                                 each experiment, plus the deltas between them
+  new_significant_in_opinion.csv  — (trait, axis) pairs significant in experiment B
+                                    but not in experiment A (sorted by |Cohen's d|)
+  lost_significant_in_opinion.csv — (trait, axis) pairs significant in experiment A
+                                    but not in experiment B (sorted by |Cohen's d|)
 
 Typical use:
   python project/compare_experiments.py \
