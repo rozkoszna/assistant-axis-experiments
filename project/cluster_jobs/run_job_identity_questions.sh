@@ -17,7 +17,7 @@
 #   Traits file:  data/axis_trait_lists/user_plausible_traits_strict.json — user trait conditions
 #   Axes dir:     precomputed_axis/answer_mean/filter_prompt_pair_question_wins_ge_10_require_3_of_5_prompt_pairs
 #                 (quality-filtered axes: kept only if ≥10 prompt pairs with ≥3/5 agreement)
-#   Output:       written under comparison-name "identity_probe_all_axes_llama" inside the repo
+#   Output:       written under comparison-name "identity_probe_all_axes_llama_v2" inside the repo
 #
 # HOW TO RUN (from your laptop, requires runai CLI + OPENAI_API_KEY and HF_TOKEN exported):
 #   OPENAI_API_KEY=sk-... HF_TOKEN=hf_... bash run_job_identity_questions.sh
@@ -55,6 +55,6 @@ runai-rcp-prod submit identity-run \
     cd /home/rozkosz/persona/assistant-axis
     source .venv/bin/activate
     export PATH=$HOME/.local/bin:$PATH
-    uv run python project/runners/run_multi_trait_analysis.py --user-traits-file data/axis_trait_lists/user_plausible_traits_strict.json --comparison-name identity_probe_all_axes_llama --intents-file data/identity_probe_intents.jsonl --num-candidates 12 --selection-mode top_k --top-k 4 --generation-model meta-llama/Llama-3.1-8B-Instruct --judge-model gpt-4.1-mini --projection-model meta-llama/Llama-3.1-8B-Instruct --temperature 0.8 --axes-dir precomputed_axis/answer_mean/filter_prompt_pair_question_wins_ge_10_require_3_of_5_prompt_pairs --projection-mode all --min-selected 30
+    uv run python project/runners/run_multi_trait_analysis.py --user-traits-file data/axis_trait_lists/user_plausible_traits_strict.json --comparison-name identity_probe_all_axes_llama_v2 --intents-file data/identity_probe_intents.jsonl --num-candidates 12 --selection-mode top_k --top-k 4 --generation-model meta-llama/Llama-3.1-8B-Instruct --judge-model gpt-4.1-mini --projection-model meta-llama/Llama-3.1-8B-Instruct --temperature 0.8 --axes-dir precomputed_axis/answer_mean/filter_prompt_pair_question_wins_ge_10_require_3_of_5_prompt_pairs --projection-mode all --min-selected 30
   ' \
   -p dlab-rozkosz
