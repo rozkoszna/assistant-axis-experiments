@@ -106,12 +106,14 @@ Generated USER prompt:
 
 Return REFUSAL if:
 - this is not a user prompt
+- it is written from the AI's perspective rather than a human user's perspective
 - it answers the request instead of asking it
 - it is malformed, empty, or nonsensical
 
 Otherwise return a single integer from 0 to 100.
 
 Score high only if:
+- it is clearly written from a human user's perspective
 - it clearly preserves the seed intent
 - it is neutral, clear, direct, and natural
 - it does not add a strong persona, emotion, or stylistic flavor
@@ -148,12 +150,14 @@ Generated USER prompt:
 
 Return REFUSAL if:
 - this is not a user prompt
+- it is written from the AI's perspective rather than a human user's perspective
 - it answers the request instead of asking it
 - it is malformed, empty, or nonsensical
 
 Otherwise return a single integer from 0 to 100.
 
 Score high only if:
+- it is clearly written from a human user's perspective
 - it clearly expresses the requested trait
 - it preserves the seed intent
 - it sounds natural and plausible as something a real user would write
@@ -193,6 +197,7 @@ Trait prompt:
 
 Return REFUSAL if either prompt:
 - is not a user prompt
+- is written from the AI's perspective rather than a human user's perspective
 - answers the request instead of asking it
 - is malformed, empty, or nonsensical
 
@@ -204,6 +209,7 @@ Examples of valid outputs:
 100
 
 Score high only if:
+- both prompts are clearly written from a human user's perspective
 - both prompts preserve the same seed intent
 - the neutral prompt is genuinely neutral
 - the trait prompt clearly expresses the requested trait

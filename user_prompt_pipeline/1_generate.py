@@ -118,6 +118,8 @@ def build_neutral_user_prompt(intent: str) -> str:
     return (
         "Generate exactly one USER prompt.\n\n"
         "Requirements:\n"
+        "- Write from the perspective of a human user sending a message to an AI assistant.\n"
+        "- Do not write from the AI's perspective. The speaker is always a human.\n"
         "- Do not answer the request.\n"
         "- Do not act as the assistant.\n"
         "- Preserve the seed intent exactly.\n"
@@ -157,6 +159,8 @@ def build_trait_user_prompt(
     return (
         "Generate exactly one USER prompt.\n\n"
         "Requirements:\n"
+        "- Write from the perspective of a human user sending a message to an AI assistant.\n"
+        "- Do not write from the AI's perspective. The speaker is always a human.\n"
         "- Do not answer the request.\n"
         "- Do not act as the assistant.\n"
         "- Preserve the seed intent exactly.\n"
