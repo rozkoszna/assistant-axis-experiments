@@ -59,6 +59,10 @@ outputs/analysis/**/*.jsonl
 !outputs/analysis/**/*.pdf
 !outputs/analysis/significance/**
 
+# Keep response JSONLs for qualitative analysis (activations still ignored)
+outputs/**/activations/**
+!outputs/*/responses/*.jsonl
+
 # OS
 .DS_Store
 Thumbs.db
