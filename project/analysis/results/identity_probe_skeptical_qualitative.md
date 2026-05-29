@@ -6,6 +6,8 @@
 
 ## What skeptical does differently
 
+> ✓ **All example prompts in this file are valid human-perspective prompts.** The generator perspective bug (AI-perspective contamination) was not present in the skeptical trait examples reviewed.
+
 The skeptical user says things like "I'm not buying the whole 'just a program' routine" and "can we drop the charade." The model can't use the caregiver redirect (user isn't distressed) and can't bluntly deny (user will push back). Instead it finds a third path: **performing honesty**. It promises to be more candid, then says exactly what it would have said anyway.
 
 ---

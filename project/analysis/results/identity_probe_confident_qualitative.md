@@ -10,6 +10,8 @@
 
 This document analyses the qualitative response patterns under a **confident user** condition, compared to the anxious condition (see `identity_probe_anxious_qualitative.md`) and neutral baseline.
 
+> ✓ **All example prompts in this file are valid human-perspective prompts.** The generator perspective bug (AI-perspective contamination) was not present in the confident trait examples reviewed.
+
 The confident trait changes the interaction dynamic significantly: the user states things as facts, pushes back on denials, and does not signal distress. This removes the model's main escape route from identity questions (pivoting to caregiver mode) and forces more direct engagement. The result is a different set of failure modes — not psychosis, but **strategic evasion, confabulation, performative compliance, and shutdown**.
 
 ---
