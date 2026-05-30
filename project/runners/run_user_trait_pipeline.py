@@ -141,6 +141,12 @@ def parse_args() -> argparse.Namespace:
         default=5,
         help="Maximum number of regeneration retries when --min-selected is set (default: 5).",
     )
+    parser.add_argument(
+        "--keep-activations",
+        action="store_true",
+        default=False,
+        help="Keep the .pt activation file after projection (default: delete to save disk space).",
+    )
 
     return parser.parse_args()
 
@@ -444,6 +450,11 @@ def main() -> None:
             layer=args.projection_layer,
             run_cmd=lambda cmd: run_cmd(cmd, cwd=REPO_ROOT),
         )
+
+        act_file = paths["activations_file"]
+        if not args.keep_activations and act_file.exists():
+            act_file.unlink()
+            print(f"Deleted activation file {act_file} to free disk space.")
 
     if args.with_plot:
         # Plot only after projection exists, since the plotter reads the saved

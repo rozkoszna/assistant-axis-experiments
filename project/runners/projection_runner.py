@@ -59,9 +59,9 @@ def run_projection_for_selected(
     Projection is response-only and activation-based. The run must provide a
     saved activation tensor file extracted during response generation.
 
-    When `neutral_output_file` is provided, the same merged rows are also saved
-    as a dedicated neutral-baseline artifact. This keeps a reusable baseline
-    file next to the main pair-projection output without re-running projection.
+    `neutral_output_file` is accepted for backwards compatibility but ignored —
+    every output row already contains `projection_score_neutral` so a separate
+    file would be a duplicate.
     """
     selected_rows = load_jsonl(selected_file)
 
@@ -142,6 +142,3 @@ def run_projection_for_selected(
 
     write_jsonl(all_rows, output_file)
     print(f"Saved {len(all_rows)} projection rows to {output_file}")
-    if neutral_output_file is not None:
-        write_jsonl(all_rows, neutral_output_file)
-        print(f"Saved {len(all_rows)} neutral baseline rows to {neutral_output_file}")

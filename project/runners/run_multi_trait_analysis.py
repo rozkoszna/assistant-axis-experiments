@@ -669,6 +669,10 @@ def run_reuse_pipeline(args: argparse.Namespace, traits: list[str]) -> list[Path
                 layer=args.projection_layer,
                 run_cmd=lambda cmd: run_cmd(cmd, cwd=REPO_ROOT),
             )
+            act_file = paths["activations_file"]
+            if not getattr(args, "keep_activations", False) and act_file.exists():
+                act_file.unlink()
+                print(f"Deleted activation file {act_file} to free disk space.")
             if args.with_per_trait_plots:
                 run_cmd(
                     build_per_trait_plot_cmd(args, paths["projections_file"], paths["plot_file"]),
