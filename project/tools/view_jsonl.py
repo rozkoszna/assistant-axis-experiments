@@ -56,7 +56,6 @@ def load_run_dir(run_dir: Path) -> list[dict]:
     files = sorted(run_dir.glob("*/projections/*.jsonl"))
     files = [f for f in files if "__neutral" not in f.name]
     if not files:
-        # Fall back to response files
         files = sorted(run_dir.glob("*/responses/*.jsonl"))
     for f in files:
         seen: dict[tuple, dict] = {}

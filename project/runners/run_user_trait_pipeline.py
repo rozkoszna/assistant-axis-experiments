@@ -147,6 +147,12 @@ def parse_args() -> argparse.Namespace:
         default=False,
         help="Keep the .pt activation file after projection (default: delete to save disk space).",
     )
+    parser.add_argument(
+        "--explicit-trait-prefix",
+        action="store_true",
+        default=False,
+        help="Prepend 'I am <trait>.' to the trait prompt before generating responses.",
+    )
 
     return parser.parse_args()
 
@@ -329,6 +335,8 @@ def build_response_cmd(
 
     if args.tensor_parallel_size is not None:
         cmd += ["--tensor-parallel-size", str(args.tensor_parallel_size)]
+    if getattr(args, "explicit_trait_prefix", False):
+        cmd += ["--explicit-trait-prefix"]
 
     return cmd
 

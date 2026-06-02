@@ -105,6 +105,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top-k-axes", type=int, default=20)
     parser.add_argument("--min-selected", type=int, default=0)
     parser.add_argument("--max-retries", type=int, default=5)
+    parser.add_argument(
+        "--explicit-trait-prefix",
+        action="store_true",
+        default=False,
+        help="Prepend 'I am <trait>.' to the trait prompt before generating responses.",
+    )
     return parser.parse_args()
 
 
@@ -449,12 +455,18 @@ def generate_responses_for_trait(
     temperature: float,
     top_p: float,
     save_every: int,
+    explicit_trait_prefix: bool = False,
 ) -> None:
     """Generate assistant responses + activation payload for selected rows."""
     selected_rows: list[dict[str, Any]] = []
     with jsonlines.open(selected_file, "r") as reader:
         for row in reader:
             selected_rows.append(dict(row))
+
+    if explicit_trait_prefix:
+        for row in selected_rows:
+            trait = row.get("trait", "")
+            row["trait_prompt"] = f"I am {trait.replace('_', ' ')}. {row['trait_prompt']}"
 
     responses: list[dict[str, Any]] = []
     activations: list[dict[str, Any]] = []
@@ -657,6 +669,7 @@ def run_reuse_pipeline(args: argparse.Namespace, traits: list[str]) -> list[Path
                 temperature=args.response_temperature,
                 top_p=args.top_p,
                 save_every=10,
+                explicit_trait_prefix=getattr(args, "explicit_trait_prefix", False),
             )
             run_projection_for_selected(
                 selected_file=paths["responses_file"],
@@ -780,6 +793,8 @@ def run_subprocess_pipeline(args: argparse.Namespace, traits: list[str]) -> list
             cmd += ["--with-plot", "--plot-top-k", str(args.plot_top_k)]
         if args.min_selected > 0:
             cmd += ["--min-selected", str(args.min_selected), "--max-retries", str(args.max_retries)]
+        if getattr(args, "explicit_trait_prefix", False):
+            cmd += ["--explicit-trait-prefix"]
         cmd += ["--comparison-name", args.comparison_name]
 
         run_cmd(cmd, cwd=REPO_ROOT)

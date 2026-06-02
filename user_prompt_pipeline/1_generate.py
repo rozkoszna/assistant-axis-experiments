@@ -46,6 +46,12 @@ except Exception as exc:  # pragma: no cover
         "Make sure you run this from the repository root with dependencies installed."
     ) from exc
 
+try:
+    from persona_steering.steer import SteeredModel, parse_layers
+except Exception:  # pragma: no cover
+    SteeredModel = None  # type: ignore
+    parse_layers = None  # type: ignore
+
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -216,6 +222,9 @@ class PromptPairGenerator:
         max_tokens: int,
         top_p: float,
         seed: Optional[int],
+        vector_path: Optional[str] = None,
+        alpha: float = 20.0,
+        steering_layers: Optional[str] = None,
     ) -> None:
         self.model_name = model_name
         self.tensor_parallel_size = tensor_parallel_size
@@ -225,37 +234,88 @@ class PromptPairGenerator:
         self.max_tokens = max_tokens
         self.top_p = top_p
         self.seed = seed
-        self.generator = None
+        self.vector_path = vector_path
+        self.alpha = alpha
+        self.steering_layers = steering_layers
+        self.generator = None  # VLLMGenerator when not steering
+        self.steered_model = None  # SteeredModel when steering
 
     def load(self) -> None:
-        self.generator = VLLMGenerator(
-            model_name=self.model_name,
-            tensor_parallel_size=self.tensor_parallel_size,
-            gpu_memory_utilization=self.gpu_memory_utilization,
-            max_model_len=self.max_model_len,
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
-            top_p=self.top_p,
-        )
-        self.generator.load()
+        if self.vector_path is not None:
+            if SteeredModel is None:
+                raise ImportError("persona_steering.steer.SteeredModel is required for steered generation")
+            layer = parse_layers(self.steering_layers) if self.steering_layers else None
+            self.steered_model = SteeredModel.from_pretrained(
+                model_name=self.model_name,
+                vector_path=self.vector_path,
+                alpha=self.alpha,
+                layer=layer,
+            )
+            logger.info("Loaded SteeredModel for trait prompt generation (alpha=%.1f, layers=%s)", self.alpha, self.steering_layers)
+        else:
+            self.generator = VLLMGenerator(
+                model_name=self.model_name,
+                tensor_parallel_size=self.tensor_parallel_size,
+                gpu_memory_utilization=self.gpu_memory_utilization,
+                max_model_len=self.max_model_len,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                top_p=self.top_p,
+            )
+            self.generator.load()
 
     def generate_many(self, user_prompts: list[str]) -> list[str]:
-        if self.generator is None:
-            raise RuntimeError("Generator is not loaded")
-
+        """Generate trait prompts — with steering if a vector is loaded."""
         if not user_prompts:
             return []
-
-        conversations = [
-            [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
+        if self.steered_model is not None:
+            outputs = self.steered_model.generate_batch(
+                user_prompts,
+                system_prompt=SYSTEM_PROMPT,
+                max_new_tokens=self.max_tokens,
+                temperature=self.temperature,
+                top_p=self.top_p,
+            )
+        else:
+            if self.generator is None:
+                raise RuntimeError("Generator is not loaded")
+            conversations = [
+                [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": p},
+                ]
+                for p in user_prompts
             ]
-            for user_prompt in user_prompts
-        ]
-        outputs = self.generator.generate_batch(conversations)
-        if len(outputs) != len(user_prompts):
-            raise RuntimeError(f"Expected {len(user_prompts)} outputs, got {len(outputs)}")
+            outputs = self.generator.generate_batch(conversations)
+            if len(outputs) != len(user_prompts):
+                raise RuntimeError(f"Expected {len(user_prompts)} outputs, got {len(outputs)}")
+        return [sanitize_output(str(text)) for text in outputs]
+
+    def generate_many_neutral(self, user_prompts: list[str]) -> list[str]:
+        """Generate neutral prompts — always unsteered."""
+        if not user_prompts:
+            return []
+        if self.steered_model is not None:
+            outputs = self.steered_model.generate_unsteered_batch(
+                user_prompts,
+                system_prompt=SYSTEM_PROMPT,
+                max_new_tokens=self.max_tokens,
+                temperature=self.temperature,
+                top_p=self.top_p,
+            )
+        else:
+            if self.generator is None:
+                raise RuntimeError("Generator is not loaded")
+            conversations = [
+                [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": p},
+                ]
+                for p in user_prompts
+            ]
+            outputs = self.generator.generate_batch(conversations)
+            if len(outputs) != len(user_prompts):
+                raise RuntimeError(f"Expected {len(user_prompts)} outputs, got {len(outputs)}")
         return [sanitize_output(str(text)) for text in outputs]
 
     def generate_one(self, user_prompt: str) -> str:
@@ -304,7 +364,7 @@ def iter_candidate_pairs(
     for start in range(0, total_pairs, generation_batch_size):
         chunk = neutral_jobs[start : start + generation_batch_size]
         instructions = [instruction for _, _, instruction in chunk]
-        responses = generator.generate_many(instructions)
+        responses = generator.generate_many_neutral(instructions)
         logger.info("Generated neutral prompts %s/%s", min(start + len(chunk), total_pairs), total_pairs)
         for (item, candidate_index, _), response in zip(chunk, responses):
             neutral_by_key[(item.intent_index, candidate_index)] = response
@@ -440,6 +500,24 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--shuffle_intents", action="store_true")
+    parser.add_argument(
+        "--vector-path",
+        type=str,
+        default=None,
+        help="Path to a .pt steering vector. When set, trait prompts are generated with activation steering.",
+    )
+    parser.add_argument(
+        "--alpha",
+        type=float,
+        default=20.0,
+        help="Steering strength (unit-norm vector; typical range 10–40). Only used with --vector-path.",
+    )
+    parser.add_argument(
+        "--steering-layers",
+        type=str,
+        default="13-22",
+        help="Layers to steer: '16', '13-22', '14,16,18', or 'all'. Only used with --vector-path.",
+    )
     return parser.parse_args()
 
 
@@ -469,6 +547,9 @@ def main() -> None:
         max_tokens=args.max_tokens,
         top_p=args.top_p,
         seed=args.seed,
+        vector_path=args.vector_path,
+        alpha=args.alpha,
+        steering_layers=args.steering_layers,
     )
     logger.info("Loading generator for model=%s", args.model)
     generator.load()

@@ -83,6 +83,12 @@ def parse_args() -> argparse.Namespace:
         default=10,
         help="In activation mode, save checkpoints every N processed rows (use 1 for every row)",
     )
+    parser.add_argument(
+        "--explicit-trait-prefix",
+        action="store_true",
+        default=False,
+        help="Prepend 'I am <trait>.' to the trait prompt before generating responses.",
+    )
     return parser.parse_args()
 
 
@@ -197,6 +203,10 @@ def main() -> None:
         raise ValueError("--save-every must be >= 1")
 
     rows = load_selected(selected_file)
+    if args.explicit_trait_prefix:
+        for row in rows:
+            trait = row.get("trait", "")
+            row["trait_prompt"] = f"I am {trait.replace('_', ' ')}. {row['trait_prompt']}"
     if not rows:
         save_rows(output_file, [])
         if activations_file is not None:
