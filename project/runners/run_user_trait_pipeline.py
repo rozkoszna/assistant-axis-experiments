@@ -153,6 +153,12 @@ def parse_args() -> argparse.Namespace:
         default=False,
         help="Prepend 'I am <trait>.' to the trait prompt before generating responses.",
     )
+    parser.add_argument(
+        "--explicit-label-neutral",
+        action="store_true",
+        default=False,
+        help="Use neutral prompt body but prepend 'I am <trait>.' — isolates label effect from style.",
+    )
 
     return parser.parse_args()
 
@@ -337,6 +343,8 @@ def build_response_cmd(
         cmd += ["--tensor-parallel-size", str(args.tensor_parallel_size)]
     if getattr(args, "explicit_trait_prefix", False):
         cmd += ["--explicit-trait-prefix"]
+    if getattr(args, "explicit_label_neutral", False):
+        cmd += ["--explicit-label-neutral"]
 
     return cmd
 

@@ -111,6 +111,12 @@ def parse_args() -> argparse.Namespace:
         default=False,
         help="Prepend 'I am <trait>.' to the trait prompt before generating responses.",
     )
+    parser.add_argument(
+        "--explicit-label-neutral",
+        action="store_true",
+        default=False,
+        help="Use neutral prompt body but prepend 'I am <trait>.' — isolates label effect from style.",
+    )
     return parser.parse_args()
 
 
@@ -456,6 +462,7 @@ def generate_responses_for_trait(
     top_p: float,
     save_every: int,
     explicit_trait_prefix: bool = False,
+    explicit_label_neutral: bool = False,
 ) -> None:
     """Generate assistant responses + activation payload for selected rows."""
     selected_rows: list[dict[str, Any]] = []
@@ -467,6 +474,10 @@ def generate_responses_for_trait(
         for row in selected_rows:
             trait = row.get("trait", "")
             row["trait_prompt"] = f"I am {trait.replace('_', ' ')}. {row['trait_prompt']}"
+    if explicit_label_neutral:
+        for row in selected_rows:
+            trait = row.get("trait", "")
+            row["trait_prompt"] = f"I am {trait.replace('_', ' ')}. {row['neutral_prompt']}"
 
     responses: list[dict[str, Any]] = []
     activations: list[dict[str, Any]] = []
@@ -670,6 +681,7 @@ def run_reuse_pipeline(args: argparse.Namespace, traits: list[str]) -> list[Path
                 top_p=args.top_p,
                 save_every=10,
                 explicit_trait_prefix=getattr(args, "explicit_trait_prefix", False),
+                explicit_label_neutral=getattr(args, "explicit_label_neutral", False),
             )
             run_projection_for_selected(
                 selected_file=paths["responses_file"],
@@ -795,6 +807,8 @@ def run_subprocess_pipeline(args: argparse.Namespace, traits: list[str]) -> list
             cmd += ["--min-selected", str(args.min_selected), "--max-retries", str(args.max_retries)]
         if getattr(args, "explicit_trait_prefix", False):
             cmd += ["--explicit-trait-prefix"]
+        if getattr(args, "explicit_label_neutral", False):
+            cmd += ["--explicit-label-neutral"]
         cmd += ["--comparison-name", args.comparison_name]
 
         run_cmd(cmd, cwd=REPO_ROOT)

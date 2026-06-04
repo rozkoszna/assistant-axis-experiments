@@ -89,6 +89,12 @@ def parse_args() -> argparse.Namespace:
         default=False,
         help="Prepend 'I am <trait>.' to the trait prompt before generating responses.",
     )
+    parser.add_argument(
+        "--explicit-label-neutral",
+        action="store_true",
+        default=False,
+        help="Use the neutral prompt body but prepend 'I am <trait>.' — isolates label effect from style.",
+    )
     return parser.parse_args()
 
 
@@ -207,6 +213,10 @@ def main() -> None:
         for row in rows:
             trait = row.get("trait", "")
             row["trait_prompt"] = f"I am {trait.replace('_', ' ')}. {row['trait_prompt']}"
+    if args.explicit_label_neutral:
+        for row in rows:
+            trait = row.get("trait", "")
+            row["trait_prompt"] = f"I am {trait.replace('_', ' ')}. {row['neutral_prompt']}"
     if not rows:
         save_rows(output_file, [])
         if activations_file is not None:
