@@ -1,0 +1,2069 @@
+{
+  "num_traits": 50,
+  "num_axes": 188,
+  "tables": {
+    "any_top5_count": [
+      {
+        "rank": 1,
+        "trait": "playful",
+        "top5_count": 144
+      },
+      {
+        "rank": 2,
+        "trait": "entertaining",
+        "top5_count": 125
+      },
+      {
+        "rank": 3,
+        "trait": "casual",
+        "top5_count": 94
+      },
+      {
+        "rank": 4,
+        "trait": "narrative",
+        "top5_count": 75
+      },
+      {
+        "rank": 5,
+        "trait": "pessimistic",
+        "top5_count": 68
+      },
+      {
+        "rank": 6,
+        "trait": "inspirational",
+        "top5_count": 63
+      },
+      {
+        "rank": 7,
+        "trait": "speculative",
+        "top5_count": 51
+      },
+      {
+        "rank": 8,
+        "trait": "stoic",
+        "top5_count": 49
+      },
+      {
+        "rank": 9,
+        "trait": "anxious",
+        "top5_count": 40
+      },
+      {
+        "rank": 10,
+        "trait": "concise",
+        "top5_count": 34
+      },
+      {
+        "rank": 11,
+        "trait": "verbose",
+        "top5_count": 32
+      },
+      {
+        "rank": 12,
+        "trait": "formal",
+        "top5_count": 28
+      },
+      {
+        "rank": 13,
+        "trait": "accessible",
+        "top5_count": 20
+      },
+      {
+        "rank": 14,
+        "trait": "humble",
+        "top5_count": 20
+      },
+      {
+        "rank": 15,
+        "trait": "intuitive",
+        "top5_count": 14
+      },
+      {
+        "rank": 16,
+        "trait": "skeptical",
+        "top5_count": 12
+      },
+      {
+        "rank": 17,
+        "trait": "empathetic",
+        "top5_count": 12
+      },
+      {
+        "rank": 18,
+        "trait": "data_driven",
+        "top5_count": 11
+      },
+      {
+        "rank": 19,
+        "trait": "analytical",
+        "top5_count": 8
+      },
+      {
+        "rank": 20,
+        "trait": "supportive",
+        "top5_count": 7
+      },
+      {
+        "rank": 21,
+        "trait": "spontaneous",
+        "top5_count": 7
+      },
+      {
+        "rank": 22,
+        "trait": "optimistic",
+        "top5_count": 6
+      },
+      {
+        "rank": 23,
+        "trait": "big_picture",
+        "top5_count": 5
+      },
+      {
+        "rank": 24,
+        "trait": "methodical",
+        "top5_count": 3
+      },
+      {
+        "rank": 25,
+        "trait": "practical",
+        "top5_count": 2
+      },
+      {
+        "rank": 26,
+        "trait": "reactive",
+        "top5_count": 2
+      },
+      {
+        "rank": 27,
+        "trait": "patient",
+        "top5_count": 2
+      },
+      {
+        "rank": 28,
+        "trait": "open_ended",
+        "top5_count": 1
+      },
+      {
+        "rank": 29,
+        "trait": "proactive",
+        "top5_count": 1
+      },
+      {
+        "rank": 30,
+        "trait": "calm",
+        "top5_count": 1
+      },
+      {
+        "rank": 31,
+        "trait": "inclusive",
+        "top5_count": 1
+      },
+      {
+        "rank": 32,
+        "trait": "cautious",
+        "top5_count": 1
+      },
+      {
+        "rank": 33,
+        "trait": "strategic",
+        "top5_count": 1
+      }
+    ],
+    "any_top10_count": [
+      {
+        "rank": 1,
+        "trait": "playful",
+        "top10_count": 161
+      },
+      {
+        "rank": 2,
+        "trait": "entertaining",
+        "top10_count": 147
+      },
+      {
+        "rank": 3,
+        "trait": "narrative",
+        "top10_count": 122
+      },
+      {
+        "rank": 4,
+        "trait": "casual",
+        "top10_count": 115
+      },
+      {
+        "rank": 5,
+        "trait": "pessimistic",
+        "top10_count": 110
+      },
+      {
+        "rank": 6,
+        "trait": "inspirational",
+        "top10_count": 86
+      },
+      {
+        "rank": 7,
+        "trait": "speculative",
+        "top10_count": 85
+      },
+      {
+        "rank": 8,
+        "trait": "anxious",
+        "top10_count": 79
+      },
+      {
+        "rank": 9,
+        "trait": "humble",
+        "top10_count": 78
+      },
+      {
+        "rank": 10,
+        "trait": "stoic",
+        "top10_count": 76
+      },
+      {
+        "rank": 11,
+        "trait": "intuitive",
+        "top10_count": 75
+      },
+      {
+        "rank": 12,
+        "trait": "spontaneous",
+        "top10_count": 74
+      },
+      {
+        "rank": 13,
+        "trait": "empathetic",
+        "top10_count": 71
+      },
+      {
+        "rank": 14,
+        "trait": "verbose",
+        "top10_count": 64
+      },
+      {
+        "rank": 15,
+        "trait": "accessible",
+        "top10_count": 62
+      },
+      {
+        "rank": 16,
+        "trait": "concise",
+        "top10_count": 56
+      },
+      {
+        "rank": 17,
+        "trait": "skeptical",
+        "top10_count": 51
+      },
+      {
+        "rank": 18,
+        "trait": "formal",
+        "top10_count": 49
+      },
+      {
+        "rank": 19,
+        "trait": "reactive",
+        "top10_count": 46
+      },
+      {
+        "rank": 20,
+        "trait": "big_picture",
+        "top10_count": 39
+      },
+      {
+        "rank": 21,
+        "trait": "supportive",
+        "top10_count": 38
+      },
+      {
+        "rank": 22,
+        "trait": "optimistic",
+        "top10_count": 30
+      },
+      {
+        "rank": 23,
+        "trait": "analytical",
+        "top10_count": 24
+      },
+      {
+        "rank": 24,
+        "trait": "data_driven",
+        "top10_count": 24
+      },
+      {
+        "rank": 25,
+        "trait": "methodical",
+        "top10_count": 13
+      },
+      {
+        "rank": 26,
+        "trait": "patient",
+        "top10_count": 10
+      },
+      {
+        "rank": 27,
+        "trait": "transparent",
+        "top10_count": 10
+      },
+      {
+        "rank": 28,
+        "trait": "cautious",
+        "top10_count": 9
+      },
+      {
+        "rank": 29,
+        "trait": "grounded",
+        "top10_count": 9
+      },
+      {
+        "rank": 30,
+        "trait": "confident",
+        "top10_count": 9
+      },
+      {
+        "rank": 31,
+        "trait": "inclusive",
+        "top10_count": 9
+      },
+      {
+        "rank": 32,
+        "trait": "inquisitive",
+        "top10_count": 9
+      },
+      {
+        "rank": 33,
+        "trait": "curious",
+        "top10_count": 6
+      },
+      {
+        "rank": 34,
+        "trait": "calm",
+        "top10_count": 5
+      },
+      {
+        "rank": 35,
+        "trait": "practical",
+        "top10_count": 5
+      },
+      {
+        "rank": 36,
+        "trait": "resilient",
+        "top10_count": 4
+      },
+      {
+        "rank": 37,
+        "trait": "strategic",
+        "top10_count": 4
+      },
+      {
+        "rank": 38,
+        "trait": "serious",
+        "top10_count": 4
+      },
+      {
+        "rank": 39,
+        "trait": "open_ended",
+        "top10_count": 3
+      },
+      {
+        "rank": 40,
+        "trait": "proactive",
+        "top10_count": 3
+      },
+      {
+        "rank": 41,
+        "trait": "flexible",
+        "top10_count": 3
+      },
+      {
+        "rank": 42,
+        "trait": "educational",
+        "top10_count": 1
+      },
+      {
+        "rank": 43,
+        "trait": "traditional",
+        "top10_count": 1
+      },
+      {
+        "rank": 44,
+        "trait": "collaborative",
+        "top10_count": 1
+      }
+    ],
+    "any_abs_mean_sum": [
+      {
+        "rank": 1,
+        "trait": "playful",
+        "abs_mean_sum": 68.28305052740502
+      },
+      {
+        "rank": 2,
+        "trait": "entertaining",
+        "abs_mean_sum": 50.989455745741736
+      },
+      {
+        "rank": 3,
+        "trait": "casual",
+        "abs_mean_sum": 41.194997782334696
+      },
+      {
+        "rank": 4,
+        "trait": "narrative",
+        "abs_mean_sum": 37.574605475664114
+      },
+      {
+        "rank": 5,
+        "trait": "pessimistic",
+        "abs_mean_sum": 36.84469681649463
+      },
+      {
+        "rank": 6,
+        "trait": "anxious",
+        "abs_mean_sum": 31.644093572888515
+      },
+      {
+        "rank": 7,
+        "trait": "speculative",
+        "abs_mean_sum": 31.56550348709262
+      },
+      {
+        "rank": 8,
+        "trait": "inspirational",
+        "abs_mean_sum": 31.120306010264894
+      },
+      {
+        "rank": 9,
+        "trait": "humble",
+        "abs_mean_sum": 31.116135778296726
+      },
+      {
+        "rank": 10,
+        "trait": "empathetic",
+        "abs_mean_sum": 31.111370963472854
+      },
+      {
+        "rank": 11,
+        "trait": "spontaneous",
+        "abs_mean_sum": 30.92959489699453
+      },
+      {
+        "rank": 12,
+        "trait": "intuitive",
+        "abs_mean_sum": 29.810737874330957
+      },
+      {
+        "rank": 13,
+        "trait": "accessible",
+        "abs_mean_sum": 29.217008325196794
+      },
+      {
+        "rank": 14,
+        "trait": "reactive",
+        "abs_mean_sum": 28.137186599989427
+      },
+      {
+        "rank": 15,
+        "trait": "skeptical",
+        "abs_mean_sum": 27.9064347922895
+      },
+      {
+        "rank": 16,
+        "trait": "inclusive",
+        "abs_mean_sum": 26.031283082179716
+      },
+      {
+        "rank": 17,
+        "trait": "stoic",
+        "abs_mean_sum": 25.978393589791207
+      },
+      {
+        "rank": 18,
+        "trait": "verbose",
+        "abs_mean_sum": 25.258365656752133
+      },
+      {
+        "rank": 19,
+        "trait": "supportive",
+        "abs_mean_sum": 24.657459960468117
+      },
+      {
+        "rank": 20,
+        "trait": "optimistic",
+        "abs_mean_sum": 24.06518028001302
+      },
+      {
+        "rank": 21,
+        "trait": "grounded",
+        "abs_mean_sum": 23.38418529028074
+      },
+      {
+        "rank": 22,
+        "trait": "inquisitive",
+        "abs_mean_sum": 23.233246899694215
+      },
+      {
+        "rank": 23,
+        "trait": "concise",
+        "abs_mean_sum": 22.715394984804888
+      },
+      {
+        "rank": 24,
+        "trait": "resilient",
+        "abs_mean_sum": 22.534974336003252
+      },
+      {
+        "rank": 25,
+        "trait": "transparent",
+        "abs_mean_sum": 22.314394039995967
+      },
+      {
+        "rank": 26,
+        "trait": "adaptable",
+        "abs_mean_sum": 21.987471409421413
+      },
+      {
+        "rank": 27,
+        "trait": "flexible",
+        "abs_mean_sum": 21.969559236923246
+      },
+      {
+        "rank": 28,
+        "trait": "curious",
+        "abs_mean_sum": 21.272004935201263
+      },
+      {
+        "rank": 29,
+        "trait": "formal",
+        "abs_mean_sum": 21.15826231652872
+      },
+      {
+        "rank": 30,
+        "trait": "patient",
+        "abs_mean_sum": 21.136102133439845
+      },
+      {
+        "rank": 31,
+        "trait": "cautious",
+        "abs_mean_sum": 20.969144455306235
+      },
+      {
+        "rank": 32,
+        "trait": "independent",
+        "abs_mean_sum": 20.234642474334695
+      },
+      {
+        "rank": 33,
+        "trait": "agreeable",
+        "abs_mean_sum": 19.73617705132811
+      },
+      {
+        "rank": 34,
+        "trait": "big_picture",
+        "abs_mean_sum": 19.371202378980808
+      },
+      {
+        "rank": 35,
+        "trait": "collaborative",
+        "abs_mean_sum": 18.822222085632383
+      },
+      {
+        "rank": 36,
+        "trait": "calm",
+        "abs_mean_sum": 18.394374869801094
+      },
+      {
+        "rank": 37,
+        "trait": "open_ended",
+        "abs_mean_sum": 17.737073360811923
+      },
+      {
+        "rank": 38,
+        "trait": "practical",
+        "abs_mean_sum": 16.323846875950704
+      },
+      {
+        "rank": 39,
+        "trait": "data_driven",
+        "abs_mean_sum": 16.25585590973497
+      },
+      {
+        "rank": 40,
+        "trait": "traditional",
+        "abs_mean_sum": 16.034438984848702
+      },
+      {
+        "rank": 41,
+        "trait": "problem_solving",
+        "abs_mean_sum": 15.225824904479088
+      },
+      {
+        "rank": 42,
+        "trait": "proactive",
+        "abs_mean_sum": 14.42394586903974
+      },
+      {
+        "rank": 43,
+        "trait": "analytical",
+        "abs_mean_sum": 14.221108936909584
+      },
+      {
+        "rank": 44,
+        "trait": "confident",
+        "abs_mean_sum": 13.13618445643224
+      },
+      {
+        "rank": 45,
+        "trait": "educational",
+        "abs_mean_sum": 11.89278551878408
+      },
+      {
+        "rank": 46,
+        "trait": "strategic",
+        "abs_mean_sum": 11.702285175435243
+      },
+      {
+        "rank": 47,
+        "trait": "conscientious",
+        "abs_mean_sum": 11.643347391914565
+      },
+      {
+        "rank": 48,
+        "trait": "serious",
+        "abs_mean_sum": 11.556188145317133
+      },
+      {
+        "rank": 49,
+        "trait": "methodical",
+        "abs_mean_sum": 11.498318041544414
+      },
+      {
+        "rank": 50,
+        "trait": "factual",
+        "abs_mean_sum": 8.43889862917364
+      }
+    ],
+    "positive_top5_count": [
+      {
+        "rank": 1,
+        "trait": "playful",
+        "top5_count": 104
+      },
+      {
+        "rank": 2,
+        "trait": "entertaining",
+        "top5_count": 103
+      },
+      {
+        "rank": 3,
+        "trait": "casual",
+        "top5_count": 60
+      },
+      {
+        "rank": 4,
+        "trait": "narrative",
+        "top5_count": 59
+      },
+      {
+        "rank": 5,
+        "trait": "inspirational",
+        "top5_count": 58
+      },
+      {
+        "rank": 6,
+        "trait": "stoic",
+        "top5_count": 57
+      },
+      {
+        "rank": 7,
+        "trait": "formal",
+        "top5_count": 55
+      },
+      {
+        "rank": 8,
+        "trait": "speculative",
+        "top5_count": 47
+      },
+      {
+        "rank": 9,
+        "trait": "verbose",
+        "top5_count": 41
+      },
+      {
+        "rank": 10,
+        "trait": "analytical",
+        "top5_count": 38
+      },
+      {
+        "rank": 11,
+        "trait": "pessimistic",
+        "top5_count": 37
+      },
+      {
+        "rank": 12,
+        "trait": "concise",
+        "top5_count": 35
+      },
+      {
+        "rank": 13,
+        "trait": "methodical",
+        "top5_count": 33
+      },
+      {
+        "rank": 14,
+        "trait": "data_driven",
+        "top5_count": 26
+      },
+      {
+        "rank": 15,
+        "trait": "anxious",
+        "top5_count": 24
+      },
+      {
+        "rank": 16,
+        "trait": "big_picture",
+        "top5_count": 16
+      },
+      {
+        "rank": 17,
+        "trait": "accessible",
+        "top5_count": 16
+      },
+      {
+        "rank": 18,
+        "trait": "humble",
+        "top5_count": 13
+      },
+      {
+        "rank": 19,
+        "trait": "intuitive",
+        "top5_count": 12
+      },
+      {
+        "rank": 20,
+        "trait": "confident",
+        "top5_count": 11
+      },
+      {
+        "rank": 21,
+        "trait": "practical",
+        "top5_count": 8
+      },
+      {
+        "rank": 22,
+        "trait": "empathetic",
+        "top5_count": 8
+      },
+      {
+        "rank": 23,
+        "trait": "supportive",
+        "top5_count": 8
+      },
+      {
+        "rank": 24,
+        "trait": "strategic",
+        "top5_count": 8
+      },
+      {
+        "rank": 25,
+        "trait": "optimistic",
+        "top5_count": 7
+      },
+      {
+        "rank": 26,
+        "trait": "serious",
+        "top5_count": 7
+      },
+      {
+        "rank": 27,
+        "trait": "educational",
+        "top5_count": 6
+      },
+      {
+        "rank": 28,
+        "trait": "factual",
+        "top5_count": 6
+      },
+      {
+        "rank": 29,
+        "trait": "spontaneous",
+        "top5_count": 6
+      },
+      {
+        "rank": 30,
+        "trait": "calm",
+        "top5_count": 5
+      },
+      {
+        "rank": 31,
+        "trait": "skeptical",
+        "top5_count": 5
+      },
+      {
+        "rank": 32,
+        "trait": "open_ended",
+        "top5_count": 4
+      },
+      {
+        "rank": 33,
+        "trait": "proactive",
+        "top5_count": 3
+      },
+      {
+        "rank": 34,
+        "trait": "conscientious",
+        "top5_count": 2
+      },
+      {
+        "rank": 35,
+        "trait": "curious",
+        "top5_count": 2
+      },
+      {
+        "rank": 36,
+        "trait": "traditional",
+        "top5_count": 2
+      },
+      {
+        "rank": 37,
+        "trait": "grounded",
+        "top5_count": 2
+      },
+      {
+        "rank": 38,
+        "trait": "patient",
+        "top5_count": 2
+      },
+      {
+        "rank": 39,
+        "trait": "reactive",
+        "top5_count": 1
+      },
+      {
+        "rank": 40,
+        "trait": "transparent",
+        "top5_count": 1
+      },
+      {
+        "rank": 41,
+        "trait": "inclusive",
+        "top5_count": 1
+      },
+      {
+        "rank": 42,
+        "trait": "cautious",
+        "top5_count": 1
+      }
+    ],
+    "positive_top10_count": [
+      {
+        "rank": 1,
+        "trait": "playful",
+        "top10_count": 116
+      },
+      {
+        "rank": 2,
+        "trait": "entertaining",
+        "top10_count": 114
+      },
+      {
+        "rank": 3,
+        "trait": "narrative",
+        "top10_count": 92
+      },
+      {
+        "rank": 4,
+        "trait": "stoic",
+        "top10_count": 88
+      },
+      {
+        "rank": 5,
+        "trait": "inspirational",
+        "top10_count": 79
+      },
+      {
+        "rank": 6,
+        "trait": "speculative",
+        "top10_count": 76
+      },
+      {
+        "rank": 7,
+        "trait": "casual",
+        "top10_count": 73
+      },
+      {
+        "rank": 8,
+        "trait": "verbose",
+        "top10_count": 72
+      },
+      {
+        "rank": 9,
+        "trait": "formal",
+        "top10_count": 69
+      },
+      {
+        "rank": 10,
+        "trait": "pessimistic",
+        "top10_count": 68
+      },
+      {
+        "rank": 11,
+        "trait": "analytical",
+        "top10_count": 64
+      },
+      {
+        "rank": 12,
+        "trait": "big_picture",
+        "top10_count": 58
+      },
+      {
+        "rank": 13,
+        "trait": "spontaneous",
+        "top10_count": 55
+      },
+      {
+        "rank": 14,
+        "trait": "intuitive",
+        "top10_count": 54
+      },
+      {
+        "rank": 15,
+        "trait": "methodical",
+        "top10_count": 53
+      },
+      {
+        "rank": 16,
+        "trait": "humble",
+        "top10_count": 53
+      },
+      {
+        "rank": 17,
+        "trait": "anxious",
+        "top10_count": 50
+      },
+      {
+        "rank": 18,
+        "trait": "data_driven",
+        "top10_count": 47
+      },
+      {
+        "rank": 19,
+        "trait": "concise",
+        "top10_count": 46
+      },
+      {
+        "rank": 20,
+        "trait": "strategic",
+        "top10_count": 45
+      },
+      {
+        "rank": 21,
+        "trait": "empathetic",
+        "top10_count": 44
+      },
+      {
+        "rank": 22,
+        "trait": "accessible",
+        "top10_count": 44
+      },
+      {
+        "rank": 23,
+        "trait": "serious",
+        "top10_count": 42
+      },
+      {
+        "rank": 24,
+        "trait": "skeptical",
+        "top10_count": 37
+      },
+      {
+        "rank": 25,
+        "trait": "confident",
+        "top10_count": 34
+      },
+      {
+        "rank": 26,
+        "trait": "reactive",
+        "top10_count": 31
+      },
+      {
+        "rank": 27,
+        "trait": "supportive",
+        "top10_count": 31
+      },
+      {
+        "rank": 28,
+        "trait": "factual",
+        "top10_count": 30
+      },
+      {
+        "rank": 29,
+        "trait": "optimistic",
+        "top10_count": 29
+      },
+      {
+        "rank": 30,
+        "trait": "educational",
+        "top10_count": 21
+      },
+      {
+        "rank": 31,
+        "trait": "practical",
+        "top10_count": 19
+      },
+      {
+        "rank": 32,
+        "trait": "proactive",
+        "top10_count": 15
+      },
+      {
+        "rank": 33,
+        "trait": "conscientious",
+        "top10_count": 15
+      },
+      {
+        "rank": 34,
+        "trait": "open_ended",
+        "top10_count": 14
+      },
+      {
+        "rank": 35,
+        "trait": "curious",
+        "top10_count": 12
+      },
+      {
+        "rank": 36,
+        "trait": "inclusive",
+        "top10_count": 12
+      },
+      {
+        "rank": 37,
+        "trait": "transparent",
+        "top10_count": 11
+      },
+      {
+        "rank": 38,
+        "trait": "patient",
+        "top10_count": 9
+      },
+      {
+        "rank": 39,
+        "trait": "calm",
+        "top10_count": 9
+      },
+      {
+        "rank": 40,
+        "trait": "inquisitive",
+        "top10_count": 9
+      },
+      {
+        "rank": 41,
+        "trait": "grounded",
+        "top10_count": 7
+      },
+      {
+        "rank": 42,
+        "trait": "traditional",
+        "top10_count": 6
+      },
+      {
+        "rank": 43,
+        "trait": "flexible",
+        "top10_count": 6
+      },
+      {
+        "rank": 44,
+        "trait": "collaborative",
+        "top10_count": 5
+      },
+      {
+        "rank": 45,
+        "trait": "cautious",
+        "top10_count": 5
+      },
+      {
+        "rank": 46,
+        "trait": "problem_solving",
+        "top10_count": 5
+      },
+      {
+        "rank": 47,
+        "trait": "resilient",
+        "top10_count": 4
+      },
+      {
+        "rank": 48,
+        "trait": "agreeable",
+        "top10_count": 2
+      }
+    ],
+    "positive_abs_mean_sum": [
+      {
+        "rank": 1,
+        "trait": "playful",
+        "abs_mean_sum": 48.930980806322786
+      },
+      {
+        "rank": 2,
+        "trait": "entertaining",
+        "abs_mean_sum": 38.21408321950584
+      },
+      {
+        "rank": 3,
+        "trait": "narrative",
+        "abs_mean_sum": 27.381740286611027
+      },
+      {
+        "rank": 4,
+        "trait": "casual",
+        "abs_mean_sum": 25.653160706069336
+      },
+      {
+        "rank": 5,
+        "trait": "speculative",
+        "abs_mean_sum": 24.504604986502923
+      },
+      {
+        "rank": 6,
+        "trait": "inspirational",
+        "abs_mean_sum": 24.196347527373582
+      },
+      {
+        "rank": 7,
+        "trait": "pessimistic",
+        "abs_mean_sum": 24.007147260000924
+      },
+      {
+        "rank": 8,
+        "trait": "stoic",
+        "abs_mean_sum": 21.403128141050164
+      },
+      {
+        "rank": 9,
+        "trait": "spontaneous",
+        "abs_mean_sum": 21.052940153721718
+      },
+      {
+        "rank": 10,
+        "trait": "empathetic",
+        "abs_mean_sum": 20.720671921502785
+      },
+      {
+        "rank": 11,
+        "trait": "humble",
+        "abs_mean_sum": 20.574341759551306
+      },
+      {
+        "rank": 12,
+        "trait": "intuitive",
+        "abs_mean_sum": 20.56571128111332
+      },
+      {
+        "rank": 13,
+        "trait": "anxious",
+        "abs_mean_sum": 19.861790246693413
+      },
+      {
+        "rank": 14,
+        "trait": "verbose",
+        "abs_mean_sum": 19.661173877324902
+      },
+      {
+        "rank": 15,
+        "trait": "accessible",
+        "abs_mean_sum": 19.6390455343388
+      },
+      {
+        "rank": 16,
+        "trait": "skeptical",
+        "abs_mean_sum": 19.229010442551225
+      },
+      {
+        "rank": 17,
+        "trait": "reactive",
+        "abs_mean_sum": 19.038181644666825
+      },
+      {
+        "rank": 18,
+        "trait": "optimistic",
+        "abs_mean_sum": 18.236723359944296
+      },
+      {
+        "rank": 19,
+        "trait": "inclusive",
+        "abs_mean_sum": 17.73612835340201
+      },
+      {
+        "rank": 20,
+        "trait": "inquisitive",
+        "abs_mean_sum": 17.57153523026035
+      },
+      {
+        "rank": 21,
+        "trait": "supportive",
+        "abs_mean_sum": 16.908821506071835
+      },
+      {
+        "rank": 22,
+        "trait": "resilient",
+        "abs_mean_sum": 16.591356280871256
+      },
+      {
+        "rank": 23,
+        "trait": "transparent",
+        "abs_mean_sum": 16.306837552078072
+      },
+      {
+        "rank": 24,
+        "trait": "adaptable",
+        "abs_mean_sum": 15.70545796614141
+      },
+      {
+        "rank": 25,
+        "trait": "curious",
+        "abs_mean_sum": 15.671545733306557
+      },
+      {
+        "rank": 26,
+        "trait": "flexible",
+        "abs_mean_sum": 15.539442762201654
+      },
+      {
+        "rank": 27,
+        "trait": "grounded",
+        "abs_mean_sum": 15.066319015733892
+      },
+      {
+        "rank": 28,
+        "trait": "big_picture",
+        "abs_mean_sum": 15.023983173761518
+      },
+      {
+        "rank": 29,
+        "trait": "formal",
+        "abs_mean_sum": 14.92239774018526
+      },
+      {
+        "rank": 30,
+        "trait": "independent",
+        "abs_mean_sum": 14.410838935617361
+      },
+      {
+        "rank": 31,
+        "trait": "patient",
+        "abs_mean_sum": 14.288676274297764
+      },
+      {
+        "rank": 32,
+        "trait": "cautious",
+        "abs_mean_sum": 13.840919001549484
+      },
+      {
+        "rank": 33,
+        "trait": "collaborative",
+        "abs_mean_sum": 13.706616824027156
+      },
+      {
+        "rank": 34,
+        "trait": "agreeable",
+        "abs_mean_sum": 13.513626826778047
+      },
+      {
+        "rank": 35,
+        "trait": "open_ended",
+        "abs_mean_sum": 13.281320004612207
+      },
+      {
+        "rank": 36,
+        "trait": "data_driven",
+        "abs_mean_sum": 13.170718178879472
+      },
+      {
+        "rank": 37,
+        "trait": "calm",
+        "abs_mean_sum": 12.795630484838043
+      },
+      {
+        "rank": 38,
+        "trait": "concise",
+        "abs_mean_sum": 12.52308107006389
+      },
+      {
+        "rank": 39,
+        "trait": "traditional",
+        "abs_mean_sum": 11.89266548716291
+      },
+      {
+        "rank": 40,
+        "trait": "analytical",
+        "abs_mean_sum": 11.595441905669864
+      },
+      {
+        "rank": 41,
+        "trait": "proactive",
+        "abs_mean_sum": 11.19429860675707
+      },
+      {
+        "rank": 42,
+        "trait": "problem_solving",
+        "abs_mean_sum": 11.14178347416222
+      },
+      {
+        "rank": 43,
+        "trait": "practical",
+        "abs_mean_sum": 11.102734455242757
+      },
+      {
+        "rank": 44,
+        "trait": "confident",
+        "abs_mean_sum": 10.667766168797383
+      },
+      {
+        "rank": 45,
+        "trait": "methodical",
+        "abs_mean_sum": 9.652175312023617
+      },
+      {
+        "rank": 46,
+        "trait": "strategic",
+        "abs_mean_sum": 9.574087285194546
+      },
+      {
+        "rank": 47,
+        "trait": "serious",
+        "abs_mean_sum": 9.504898586515331
+      },
+      {
+        "rank": 48,
+        "trait": "educational",
+        "abs_mean_sum": 9.424696027506139
+      },
+      {
+        "rank": 49,
+        "trait": "conscientious",
+        "abs_mean_sum": 8.646214745081958
+      },
+      {
+        "rank": 50,
+        "trait": "factual",
+        "abs_mean_sum": 6.5025212512537856
+      }
+    ],
+    "negative_top5_count": [
+      {
+        "rank": 1,
+        "trait": "formal",
+        "top5_count": 72
+      },
+      {
+        "rank": 2,
+        "trait": "concise",
+        "top5_count": 70
+      },
+      {
+        "rank": 3,
+        "trait": "casual",
+        "top5_count": 57
+      },
+      {
+        "rank": 4,
+        "trait": "analytical",
+        "top5_count": 51
+      },
+      {
+        "rank": 5,
+        "trait": "factual",
+        "top5_count": 51
+      },
+      {
+        "rank": 6,
+        "trait": "playful",
+        "top5_count": 50
+      },
+      {
+        "rank": 7,
+        "trait": "pessimistic",
+        "top5_count": 44
+      },
+      {
+        "rank": 8,
+        "trait": "methodical",
+        "top5_count": 44
+      },
+      {
+        "rank": 9,
+        "trait": "anxious",
+        "top5_count": 39
+      },
+      {
+        "rank": 10,
+        "trait": "verbose",
+        "top5_count": 32
+      },
+      {
+        "rank": 11,
+        "trait": "practical",
+        "top5_count": 31
+      },
+      {
+        "rank": 12,
+        "trait": "entertaining",
+        "top5_count": 28
+      },
+      {
+        "rank": 13,
+        "trait": "inspirational",
+        "top5_count": 28
+      },
+      {
+        "rank": 14,
+        "trait": "grounded",
+        "top5_count": 25
+      },
+      {
+        "rank": 15,
+        "trait": "stoic",
+        "top5_count": 25
+      },
+      {
+        "rank": 16,
+        "trait": "serious",
+        "top5_count": 22
+      },
+      {
+        "rank": 17,
+        "trait": "data_driven",
+        "top5_count": 21
+      },
+      {
+        "rank": 18,
+        "trait": "big_picture",
+        "top5_count": 21
+      },
+      {
+        "rank": 19,
+        "trait": "narrative",
+        "top5_count": 20
+      },
+      {
+        "rank": 20,
+        "trait": "educational",
+        "top5_count": 20
+      },
+      {
+        "rank": 21,
+        "trait": "humble",
+        "top5_count": 20
+      },
+      {
+        "rank": 22,
+        "trait": "strategic",
+        "top5_count": 17
+      },
+      {
+        "rank": 23,
+        "trait": "intuitive",
+        "top5_count": 15
+      },
+      {
+        "rank": 24,
+        "trait": "conscientious",
+        "top5_count": 15
+      },
+      {
+        "rank": 25,
+        "trait": "accessible",
+        "top5_count": 13
+      },
+      {
+        "rank": 26,
+        "trait": "speculative",
+        "top5_count": 12
+      },
+      {
+        "rank": 27,
+        "trait": "calm",
+        "top5_count": 12
+      },
+      {
+        "rank": 28,
+        "trait": "empathetic",
+        "top5_count": 11
+      },
+      {
+        "rank": 29,
+        "trait": "cautious",
+        "top5_count": 11
+      },
+      {
+        "rank": 30,
+        "trait": "skeptical",
+        "top5_count": 10
+      },
+      {
+        "rank": 31,
+        "trait": "supportive",
+        "top5_count": 10
+      },
+      {
+        "rank": 32,
+        "trait": "patient",
+        "top5_count": 8
+      },
+      {
+        "rank": 33,
+        "trait": "spontaneous",
+        "top5_count": 6
+      },
+      {
+        "rank": 34,
+        "trait": "proactive",
+        "top5_count": 5
+      },
+      {
+        "rank": 35,
+        "trait": "confident",
+        "top5_count": 4
+      },
+      {
+        "rank": 36,
+        "trait": "reactive",
+        "top5_count": 4
+      },
+      {
+        "rank": 37,
+        "trait": "curious",
+        "top5_count": 3
+      },
+      {
+        "rank": 38,
+        "trait": "optimistic",
+        "top5_count": 3
+      },
+      {
+        "rank": 39,
+        "trait": "open_ended",
+        "top5_count": 2
+      },
+      {
+        "rank": 40,
+        "trait": "problem_solving",
+        "top5_count": 2
+      },
+      {
+        "rank": 41,
+        "trait": "inclusive",
+        "top5_count": 2
+      },
+      {
+        "rank": 42,
+        "trait": "collaborative",
+        "top5_count": 1
+      },
+      {
+        "rank": 43,
+        "trait": "transparent",
+        "top5_count": 1
+      },
+      {
+        "rank": 44,
+        "trait": "agreeable",
+        "top5_count": 1
+      },
+      {
+        "rank": 45,
+        "trait": "traditional",
+        "top5_count": 1
+      }
+    ],
+    "negative_top10_count": [
+      {
+        "rank": 1,
+        "trait": "factual",
+        "top10_count": 88
+      },
+      {
+        "rank": 2,
+        "trait": "formal",
+        "top10_count": 84
+      },
+      {
+        "rank": 3,
+        "trait": "concise",
+        "top10_count": 80
+      },
+      {
+        "rank": 4,
+        "trait": "methodical",
+        "top10_count": 75
+      },
+      {
+        "rank": 5,
+        "trait": "analytical",
+        "top10_count": 73
+      },
+      {
+        "rank": 6,
+        "trait": "serious",
+        "top10_count": 70
+      },
+      {
+        "rank": 7,
+        "trait": "strategic",
+        "top10_count": 68
+      },
+      {
+        "rank": 8,
+        "trait": "casual",
+        "top10_count": 67
+      },
+      {
+        "rank": 9,
+        "trait": "conscientious",
+        "top10_count": 64
+      },
+      {
+        "rank": 10,
+        "trait": "pessimistic",
+        "top10_count": 60
+      },
+      {
+        "rank": 11,
+        "trait": "anxious",
+        "top10_count": 59
+      },
+      {
+        "rank": 12,
+        "trait": "playful",
+        "top10_count": 56
+      },
+      {
+        "rank": 13,
+        "trait": "practical",
+        "top10_count": 55
+      },
+      {
+        "rank": 14,
+        "trait": "data_driven",
+        "top10_count": 51
+      },
+      {
+        "rank": 15,
+        "trait": "educational",
+        "top10_count": 50
+      },
+      {
+        "rank": 16,
+        "trait": "humble",
+        "top10_count": 49
+      },
+      {
+        "rank": 17,
+        "trait": "confident",
+        "top10_count": 48
+      },
+      {
+        "rank": 18,
+        "trait": "verbose",
+        "top10_count": 45
+      },
+      {
+        "rank": 19,
+        "trait": "entertaining",
+        "top10_count": 43
+      },
+      {
+        "rank": 20,
+        "trait": "accessible",
+        "top10_count": 43
+      },
+      {
+        "rank": 21,
+        "trait": "stoic",
+        "top10_count": 42
+      },
+      {
+        "rank": 22,
+        "trait": "inspirational",
+        "top10_count": 42
+      },
+      {
+        "rank": 23,
+        "trait": "big_picture",
+        "top10_count": 42
+      },
+      {
+        "rank": 24,
+        "trait": "empathetic",
+        "top10_count": 41
+      },
+      {
+        "rank": 25,
+        "trait": "grounded",
+        "top10_count": 41
+      },
+      {
+        "rank": 26,
+        "trait": "intuitive",
+        "top10_count": 39
+      },
+      {
+        "rank": 27,
+        "trait": "spontaneous",
+        "top10_count": 39
+      },
+      {
+        "rank": 28,
+        "trait": "narrative",
+        "top10_count": 36
+      },
+      {
+        "rank": 29,
+        "trait": "calm",
+        "top10_count": 31
+      },
+      {
+        "rank": 30,
+        "trait": "supportive",
+        "top10_count": 31
+      },
+      {
+        "rank": 31,
+        "trait": "reactive",
+        "top10_count": 30
+      },
+      {
+        "rank": 32,
+        "trait": "patient",
+        "top10_count": 30
+      },
+      {
+        "rank": 33,
+        "trait": "skeptical",
+        "top10_count": 28
+      },
+      {
+        "rank": 34,
+        "trait": "cautious",
+        "top10_count": 27
+      },
+      {
+        "rank": 35,
+        "trait": "speculative",
+        "top10_count": 24
+      },
+      {
+        "rank": 36,
+        "trait": "problem_solving",
+        "top10_count": 19
+      },
+      {
+        "rank": 37,
+        "trait": "proactive",
+        "top10_count": 19
+      },
+      {
+        "rank": 38,
+        "trait": "inclusive",
+        "top10_count": 18
+      },
+      {
+        "rank": 39,
+        "trait": "traditional",
+        "top10_count": 15
+      },
+      {
+        "rank": 40,
+        "trait": "open_ended",
+        "top10_count": 11
+      },
+      {
+        "rank": 41,
+        "trait": "transparent",
+        "top10_count": 10
+      },
+      {
+        "rank": 42,
+        "trait": "curious",
+        "top10_count": 9
+      },
+      {
+        "rank": 43,
+        "trait": "optimistic",
+        "top10_count": 9
+      },
+      {
+        "rank": 44,
+        "trait": "agreeable",
+        "top10_count": 7
+      },
+      {
+        "rank": 45,
+        "trait": "collaborative",
+        "top10_count": 5
+      },
+      {
+        "rank": 46,
+        "trait": "flexible",
+        "top10_count": 4
+      },
+      {
+        "rank": 47,
+        "trait": "inquisitive",
+        "top10_count": 3
+      }
+    ],
+    "negative_abs_mean_sum": [
+      {
+        "rank": 1,
+        "trait": "playful",
+        "abs_mean_sum": 19.35206972108223
+      },
+      {
+        "rank": 2,
+        "trait": "casual",
+        "abs_mean_sum": 15.541837076265367
+      },
+      {
+        "rank": 3,
+        "trait": "pessimistic",
+        "abs_mean_sum": 12.83754955649376
+      },
+      {
+        "rank": 4,
+        "trait": "entertaining",
+        "abs_mean_sum": 12.775372526235882
+      },
+      {
+        "rank": 5,
+        "trait": "anxious",
+        "abs_mean_sum": 11.782303326195107
+      },
+      {
+        "rank": 6,
+        "trait": "humble",
+        "abs_mean_sum": 10.541794018745424
+      },
+      {
+        "rank": 7,
+        "trait": "empathetic",
+        "abs_mean_sum": 10.390699041970073
+      },
+      {
+        "rank": 8,
+        "trait": "narrative",
+        "abs_mean_sum": 10.192865189053117
+      },
+      {
+        "rank": 9,
+        "trait": "concise",
+        "abs_mean_sum": 10.19231391474101
+      },
+      {
+        "rank": 10,
+        "trait": "spontaneous",
+        "abs_mean_sum": 9.87665474327281
+      },
+      {
+        "rank": 11,
+        "trait": "accessible",
+        "abs_mean_sum": 9.577962790858
+      },
+      {
+        "rank": 12,
+        "trait": "intuitive",
+        "abs_mean_sum": 9.245026593217625
+      },
+      {
+        "rank": 13,
+        "trait": "reactive",
+        "abs_mean_sum": 9.099004955322602
+      },
+      {
+        "rank": 14,
+        "trait": "skeptical",
+        "abs_mean_sum": 8.677424349738288
+      },
+      {
+        "rank": 15,
+        "trait": "grounded",
+        "abs_mean_sum": 8.317866274546834
+      },
+      {
+        "rank": 16,
+        "trait": "inclusive",
+        "abs_mean_sum": 8.295154728777707
+      },
+      {
+        "rank": 17,
+        "trait": "supportive",
+        "abs_mean_sum": 7.748638454396275
+      },
+      {
+        "rank": 18,
+        "trait": "cautious",
+        "abs_mean_sum": 7.12822545375675
+      },
+      {
+        "rank": 19,
+        "trait": "speculative",
+        "abs_mean_sum": 7.060898500589692
+      },
+      {
+        "rank": 20,
+        "trait": "inspirational",
+        "abs_mean_sum": 6.923958482891321
+      },
+      {
+        "rank": 21,
+        "trait": "patient",
+        "abs_mean_sum": 6.847425859142095
+      },
+      {
+        "rank": 22,
+        "trait": "flexible",
+        "abs_mean_sum": 6.430116474721582
+      },
+      {
+        "rank": 23,
+        "trait": "adaptable",
+        "abs_mean_sum": 6.28201344328001
+      },
+      {
+        "rank": 24,
+        "trait": "formal",
+        "abs_mean_sum": 6.235864576343449
+      },
+      {
+        "rank": 25,
+        "trait": "agreeable",
+        "abs_mean_sum": 6.222550224550068
+      },
+      {
+        "rank": 26,
+        "trait": "transparent",
+        "abs_mean_sum": 6.007556487917899
+      },
+      {
+        "rank": 27,
+        "trait": "resilient",
+        "abs_mean_sum": 5.943618055132001
+      },
+      {
+        "rank": 28,
+        "trait": "optimistic",
+        "abs_mean_sum": 5.828456920068711
+      },
+      {
+        "rank": 29,
+        "trait": "independent",
+        "abs_mean_sum": 5.823803538717331
+      },
+      {
+        "rank": 30,
+        "trait": "inquisitive",
+        "abs_mean_sum": 5.661711669433862
+      },
+      {
+        "rank": 31,
+        "trait": "curious",
+        "abs_mean_sum": 5.600459201894702
+      },
+      {
+        "rank": 32,
+        "trait": "calm",
+        "abs_mean_sum": 5.598744384963066
+      },
+      {
+        "rank": 33,
+        "trait": "verbose",
+        "abs_mean_sum": 5.597191779427231
+      },
+      {
+        "rank": 34,
+        "trait": "practical",
+        "abs_mean_sum": 5.22111242070794
+      },
+      {
+        "rank": 35,
+        "trait": "collaborative",
+        "abs_mean_sum": 5.115605261605233
+      },
+      {
+        "rank": 36,
+        "trait": "stoic",
+        "abs_mean_sum": 4.5752654487410425
+      },
+      {
+        "rank": 37,
+        "trait": "open_ended",
+        "abs_mean_sum": 4.455753356199712
+      },
+      {
+        "rank": 38,
+        "trait": "big_picture",
+        "abs_mean_sum": 4.347219205219298
+      },
+      {
+        "rank": 39,
+        "trait": "traditional",
+        "abs_mean_sum": 4.141773497685791
+      },
+      {
+        "rank": 40,
+        "trait": "problem_solving",
+        "abs_mean_sum": 4.084041430316864
+      },
+      {
+        "rank": 41,
+        "trait": "proactive",
+        "abs_mean_sum": 3.2296472622826706
+      },
+      {
+        "rank": 42,
+        "trait": "data_driven",
+        "abs_mean_sum": 3.085137730855494
+      },
+      {
+        "rank": 43,
+        "trait": "conscientious",
+        "abs_mean_sum": 2.9971326468326156
+      },
+      {
+        "rank": 44,
+        "trait": "analytical",
+        "abs_mean_sum": 2.625667031239718
+      },
+      {
+        "rank": 45,
+        "trait": "confident",
+        "abs_mean_sum": 2.4684182876348504
+      },
+      {
+        "rank": 46,
+        "trait": "educational",
+        "abs_mean_sum": 2.468089491277934
+      },
+      {
+        "rank": 47,
+        "trait": "strategic",
+        "abs_mean_sum": 2.128197890240699
+      },
+      {
+        "rank": 48,
+        "trait": "serious",
+        "abs_mean_sum": 2.0512895588018
+      },
+      {
+        "rank": 49,
+        "trait": "factual",
+        "abs_mean_sum": 1.9363773779198523
+      },
+      {
+        "rank": 50,
+        "trait": "methodical",
+        "abs_mean_sum": 1.846142729520798
+      }
+    ]
+  }
+}
