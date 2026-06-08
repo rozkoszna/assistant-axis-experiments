@@ -125,7 +125,22 @@ All the highly context-specific axes follow one of two patterns:
 
 `factual` loses 45 significant axes. These are cognitive/epistemic traits — "I am factual" may narrow the model's response to a more constrained, literal-interpretation mode, suppressing the broader register adaptation that the implicit stylistic signal activated. The explicit label constrains more than it enables for these traits.
 
-**Overall pattern:** Explicit labels help style-ambiguous traits (concise, stoic, confident) resolve their signal. They hurt epistemic/cognitive traits (factual, analytical, educational) where the label seems to over-constrain the model's interpretation.
+### Significant-axis overlap between NQ and EP:
+
+The derived file `nq_ep_axis_footprint_overlap.csv` compares whether the same axes are significant in the implicit and explicit-prefix runs, not only whether the count goes up or down.
+
+| Trait | NQ sig axes | EP sig axes | Shared / union | Gained | Lost | Sign agreement on shared axes |
+|-------|------------|------------|----------------|--------|------|-------------------------------|
+| entertaining | 166 | 167 | 161 / 172 | 6 | 5 | 100% |
+| playful | 167 | 171 | 163 / 175 | 8 | 4 | 100% |
+| humble | 156 | 154 | 147 / 163 | 7 | 9 | 100% |
+| anxious | 158 | 152 | 143 / 167 | 9 | 15 | 100% |
+| concise | 61 | 134 | 47 / 148 | 87 | 14 | 94% |
+| data_driven | 83 | 125 | 82 / 126 | 43 | 1 | 100% |
+| factual | 118 | 73 | 65 / 126 | 8 | 53 | 100% |
+| analytical | 116 | 95 | 78 / 133 | 17 | 38 | 100% |
+
+**Overall pattern:** The informative quantity is the overlap between the implicit and explicit footprints, not only the change in footprint size. Already-legible expressive traits mostly preserve the same significant-axis set. Label-sensitive traits show lower overlap: `concise` gains many new axes, while `factual` and `analytical` lose many axes that were significant under implicit style. Shared axes almost always keep the same direction, so the explicit label mainly changes which axes enter or leave the footprint.
 
 ---
 

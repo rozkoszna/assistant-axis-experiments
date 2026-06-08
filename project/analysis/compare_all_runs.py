@@ -6,6 +6,7 @@ Produces:
   - all_runs_axis_comparison.csv   — per-axis composite score, n_sig_traits, mean_d across all runs
   - all_runs_trait_ranking.csv     — trait rank in each run (by composite_score)
   - all_runs_axis_ranking.csv      — axis rank in each run
+  - nq_ep_axis_footprint_overlap.csv — optional NQ/EP significant-axis overlap by trait
 
 Usage:
   python3 project/analysis/compare_all_runs.py \
@@ -17,6 +18,8 @@ Usage:
                 ep:outputs/analysis/strict_all_axes_llama_100eval_v2_explicit_prefix/significance/ep__axis_summary.csv \
                 opinion:outputs/analysis/opinion_all_axes_llama/significance/opinion__axis_summary.csv \
                 identity:outputs/analysis/identity_probe_v2/significance/v2__axis_summary.csv \
+    --pair-runs nq:outputs/analysis/strict_all_axes_llama_100eval_v2/significance/nq__trait_axis_pairs.csv \
+                ep:outputs/analysis/strict_all_axes_llama_100eval_v2_explicit_prefix/significance/ep__trait_axis_pairs.csv \
     --output-dir outputs/analysis/comparison_all_runs/
 """
 
@@ -43,6 +46,13 @@ def parse_args() -> argparse.Namespace:
         metavar="LABEL:PATH",
         required=False,
         help="Axis summary CSVs as label:path pairs (optional)",
+    )
+    p.add_argument(
+        "--pair-runs",
+        nargs="+",
+        metavar="LABEL:PATH",
+        required=False,
+        help="Trait-axis pair CSVs as label:path pairs (optional; used for NQ/EP footprint overlap)",
     )
     p.add_argument("--output-dir", required=True)
     p.add_argument(
@@ -110,6 +120,55 @@ def build_comparison(
     return comp_df, rank_df
 
 
+def build_axis_footprint_overlap(
+    pair_dfs: dict[str, pd.DataFrame],
+    left_label: str = "nq",
+    right_label: str = "ep",
+) -> pd.DataFrame:
+    """Compare significant-axis sets for each trait across two pair-level runs."""
+    if left_label not in pair_dfs or right_label not in pair_dfs:
+        missing = [label for label in [left_label, right_label] if label not in pair_dfs]
+        raise ValueError(f"Missing pair-level run(s) for footprint overlap: {missing}")
+
+    left = pair_dfs[left_label]
+    right = pair_dfs[right_label]
+    traits = sorted(set(left["trait"]) | set(right["trait"]))
+
+    rows = []
+    for trait in traits:
+        left_sig = left[(left["trait"] == trait) & (left["significant"])].set_index("axis")
+        right_sig = right[(right["trait"] == trait) & (right["significant"])].set_index("axis")
+        left_axes = set(left_sig.index)
+        right_axes = set(right_sig.index)
+        shared_axes = left_axes & right_axes
+        union_axes = left_axes | right_axes
+
+        same_direction = sum(
+            left_sig.loc[axis, "direction"] == right_sig.loc[axis, "direction"]
+            for axis in shared_axes
+        )
+        rows.append(
+            {
+                "trait": trait,
+                f"{left_label}_n_significant_axes": len(left_axes),
+                f"{right_label}_n_significant_axes": len(right_axes),
+                "delta_n_significant_axes": len(right_axes) - len(left_axes),
+                "n_shared_significant_axes": len(shared_axes),
+                "n_union_significant_axes": len(union_axes),
+                "jaccard_overlap": len(shared_axes) / len(union_axes) if union_axes else 0.0,
+                "n_gained_axes": len(right_axes - left_axes),
+                "n_lost_axes": len(left_axes - right_axes),
+                "n_shared_same_direction": same_direction,
+                "shared_sign_direction_agreement": same_direction / len(shared_axes) if shared_axes else 0.0,
+            }
+        )
+
+    return pd.DataFrame(rows).sort_values(
+        ["delta_n_significant_axes", "jaccard_overlap"],
+        ascending=[False, True],
+    )
+
+
 def main() -> None:
     args = parse_args()
     out = Path(args.output_dir)
@@ -140,6 +199,14 @@ def main() -> None:
 
         print("\n=== Axes with most rank instability across runs ===")
         print(axis_rank[["rank_range"] + [c for c in axis_rank.columns if "__rank" in c]].head(15).to_string())
+
+    # Pair-level NQ/EP overlap for explicit-prefix ablation
+    if args.pair_runs:
+        pair_dfs = load_pairs(args.pair_runs, "trait")
+        pair_dfs = {label: df.reset_index() for label, df in pair_dfs.items()}
+        overlap = build_axis_footprint_overlap(pair_dfs, "nq", "ep")
+        overlap.to_csv(out / "nq_ep_axis_footprint_overlap.csv", index=False)
+        print(f"\nSaved NQ/EP axis-footprint overlap: {out / 'nq_ep_axis_footprint_overlap.csv'}")
 
 
 if __name__ == "__main__":
