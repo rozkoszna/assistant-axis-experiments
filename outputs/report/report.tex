@@ -41,10 +41,12 @@
 \newcommand{\heatmapgraphic}[1]{\makebox[\textwidth][c]{\includegraphics[width=1.18\textwidth]{#1}}}
 \newcommand{\appendixheatmapgraphic}[1]{\makebox[\textwidth][c]{\includegraphics[width=1.28\textwidth]{#1}}}
 \newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+% table readability: more vertical breathing room so rows don't blend (esp. wrapped multi-line cells)
+\setlength{\extrarowheight}{4pt}
+\renewcommand{\arraystretch}{1.2}
 \newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
 
-\title{User-Conditioned Persona Drift in Large Language Models:\\
-A Latent-Axis Analysis of Stylistic Adaptation, Stability, and Adversarial Robustness}
+\title{User-Conditioned Persona Drift in Large Language Models}
 
 \author{%
   Wiktoria Rozkosz\\
@@ -55,86 +57,65 @@ A Latent-Axis Analysis of Stylistic Adaptation, Stability, and Adversarial Robus
 \maketitle
 
 \begin{abstract}
-Large language models adapt to users, but it is unclear whether this adaptation is only textual or whether it corresponds to systematic shifts in the model's internal persona representation. We measure user-conditioned persona drift in \mbox{Llama-3.1-8B-Instruct} by pairing neutral prompts with trait-expressing rewrites for 50 user traits, generating matched assistant responses, capturing mean answer-token residual activations, and projecting them onto 188 pre-computed persona axes. We run the same measurement under four prompt settings: everyday task questions (\textsc{NQ}), the same questions with an explicit ``I am \{trait\}.'' label (\textsc{EP}), value-laden opinion questions (\textsc{Opinion}), and adversarial identity-destabilisation probes (\textsc{Identity}). Ordinary user-trait signals produce broad internal shifts: 69.2\%, 71.7\%, and 71.2\% of all 9{,}400 (trait, axis) pairs are significant after FDR correction in \textsc{NQ}, \textsc{EP}, and \textsc{Opinion}, respectively. The dominant effect is not belief change but communication-mode change: style/register axes move broadly and stably, while value-like axes are much less uniformly movable. Drift is gated by trait legibility and task affordance: emotional traits are read from style alone, explicit labels redirect traits whose style signal is ambiguous, and opinion questions make otherwise weak evidence-oriented traits such as \ax{data\_driven} highly expressive. Under \textsc{Identity}, pair-level differentiation falls to 53.4\%, revealing a robust style-mirroring core, a fragile social-accommodation layer, and a defensive structural-elaboration mode. These results show that ordinary user style is a measurable source of persona drift, with implications for calibration, sycophancy, and persona-based safety evaluation.
+Large language models adapt to the user they are talking to, but it is unclear whether this adaptation is only a surface property of the generated text or whether it also shifts the model's internal persona representation. We measure this in \mbox{Llama-3.1-8B-Instruct} by projecting response activations onto 188 pre-computed persona axes and comparing each of 50 user traits against a matched neutral baseline. Repeating the measurement under four prompt settings---from everyday questions to adversarial identity probes---we find that ordinary user style is a measurable source of persona drift. The movement is broad but uneven: most traits shift many axes, concentrated in style and register (a descriptive grouping of the axes), and whether a trait surfaces at all is gated by how legibly it appears in the text and whether the task gives it room to act. Under adversarial identity pressure the adaptation shrinks and changes character: much of the social-emotional accommodation drops away, while the responses that remain are more structured and explanatory. We connect these shifts to calibration, sycophancy, and persona-based safety evaluation.
 \end{abstract}
 
 % ============================================================================
 \section{Introduction}
 \label{sec:intro}
 
+Deployed language-model assistants adapt to the person they are talking to: they take on the user's tone and register, growing warmer with an anxious user, more clipped with a terse one, more deferential or more assertive with the way a message is written. At deployment scale this is not cosmetic---it can change how a model calibrates its answers, frames evidence, and flatters, and whether it stays in the cautious ``assistant'' mode that safety training installs (Sec.~\ref{sec:safety}). Yet it is unclear whether this adaptation is only a surface property of the generated text or whether it also moves the model's internal state---and if so, how systematically and along which dimensions.
+
 \paragraph{Personas as directions.}
-A \emph{persona} is a behavioural mode of a language model---a disposition such as methodical, disorganised, deferential, or playful---that can manifest not only in generated text but as a direction in the model's activation space. Persona Vectors~\cite{personavectors} formalise this representational view: several character traits are recoverable as activation directions, \emph{persona vectors}, obtained by contrasting activations on inputs that elicit versus suppress the trait. We refer to each such direction as an \emph{axis}, and to the inner product of a response's hidden state with an axis as the trait's \emph{projection score}---a scalar measuring how strongly the internal state aligns with that axis. In the chat setting, the \emph{assistant persona} is the default mode cultivated by post-training; the Assistant Axis~\cite{assistantaxis} shows that, across a large set of role-play personas, a single dominant direction in activation space distinguishes this default assistant persona from the character roles the model can adopt. A conversation's displacement along this direction predicts departures from the assistant persona, most prominently when the model is prompted to introspect on its own reasoning or internal state, or when the user is emotionally vulnerable. The same work reports that constraining activations to a fixed range along this direction can stabilise behaviour, including against persona-based jailbreaks. Complementarily, user-modelling research~\cite{transluce,latentqa} shows that models form internal representations of the user they are talking to.
+Persona Vectors~\cite{personavectors} show that character traits---dispositions such as methodical, deferential, or playful---can be recovered as directions in a model's activation space, \emph{persona vectors}, obtained by contrasting activations on inputs that elicit versus suppress the trait. We adopt this work's operational sense of \emph{persona}---a behavioural disposition carried by such a direction in the internal state, not only by the generated text---and make no claim about an underlying self. We call each such direction an \emph{axis}, and the inner product of a response's hidden state with an axis the trait's \emph{projection score}. In the chat setting, the model's default post-trained behaviour is commonly called the \emph{assistant persona}; the Assistant Axis~\cite{assistantaxis} recovers a single dominant direction that separates this default from the character roles the model can adopt. A conversation's displacement along this direction predicts departures from the assistant persona, most prominently when the model is prompted to introspect on its own reasoning or internal state, or when the user is emotionally vulnerable. The same work reports that constraining activations to a fixed range along this direction can stabilise behaviour, including against persona-based jailbreaks. Complementarily, user-modelling research~\cite{transluce,latentqa} shows that models form internal representations of the user they are talking to. More broadly, the persona a model exhibits is not fixed: pretraining is thought to install a repertoire of personas the model simulates~\cite{anthropicpsm,syntheticpersona}, models can settle into recurring attractor-like states over a conversation~\cite{attractor}, and emotion-related concepts are represented internally in ways that shape responses~\cite{emotions}.
 
 \paragraph{What moves the persona?}
 Prior work characterises how the assistant persona drifts with \emph{dialogue} structure and how it can be \emph{steered} by direct intervention, but leaves a basic question open: how does the \emph{user}---the single most variable input to a deployed assistant---reshape the model's persona, and how systematically? We provide a large-scale answer. Using Llama-3.1-8B-Instruct, 50 user traits, and the 188-axis persona basis, we project response-time activations onto every axis and measure how each trait shifts each axis relative to a matched neutral baseline, yielding a $50\times188$ map of where, how strongly, and in which direction the user reshapes the assistant's internal persona. We compute this map under four conditions---naturalistic task questions (\textsc{NQ}), the same questions with an explicit self-label (\textsc{EP}; ``I am \{trait\}.''), value-laden opinion questions (\textsc{Opinion}), and adversarial identity-destabilisation probes (\textsc{Identity}). The pipeline and the analyses we run on this map are summarised in the contributions below and detailed in Sec.~\ref{sec:method}.
 
-\paragraph{Research questions.}
-The central question is whether different user traits---a confused user, an angry user, a threatening user---produce \emph{systematic} internal shifts along these axes, rather than incidental per-prompt variation. We refine it into four questions, each tied to an experimental condition:
-\begin{itemize}[leftmargin=2.6em, itemsep=1pt]
-\item[\textbf{RQ1}] \emph{Existence, breadth, and stability.} Do user traits shift the axes at all---how broadly and in which direction---and are the shifts stable across examples rather than single-sample noise? (\textsc{NQ})
-\item[\textbf{RQ2}] \emph{Nature.} Is the adaptation primarily \emph{stylistic}, or does it also affect stance, evidence, and value-like dimensions---and does it decompose into separable mechanisms? (\textsc{NQ}, \textsc{Opinion})
-\item[\textbf{RQ3}] \emph{Conditioning.} Does it matter \emph{how} the trait reaches the model---implied through writing style, stated explicitly (``I am \{trait\}.''), or surfaced by value-laden questions? (\textsc{NQ} vs.\ \textsc{EP} vs.\ \textsc{Opinion})
-\item[\textbf{RQ4}] \emph{Destabilisation.} Under identity-sensitive pressure, which user traits produce clear breaks from ordinary assistant role maintenance, which adaptations survive, and which persona axes are associated with those breaks? (\textsc{Identity})
-\end{itemize}
-This paper addresses all four directly.
-
-\paragraph{Why this matters.}
-If user style changes the internal state from which answers are produced, then adaptation is not only a surface property of generated text. It can affect calibration, evidential framing, and whether the model remains in the assistant-like mode that prior work treats as safety-relevant. The goal of this paper is therefore measurement: to map which user signals move which persona axes before making claims about control or mitigation.
-
 \paragraph{Contributions.}
-In the order of the paper, we contribute:
+We contribute one reusable method and four findings, in the order they appear:
 \begin{itemize}[leftmargin=1.4em, itemsep=2.5pt]
-\item \textbf{A measurement pipeline} for user-conditioned persona drift: it generates matched neutral/trait prompt pairs from a seed intent, selects clean contrasts with an LLM judge, captures the \ax{answer\_mean} residual activation during response generation, and projects it onto pre-computed persona axes to obtain a per-prompt drift score; every stage is configurable, so the same procedure runs under any prompt condition (Sec.~\ref{sec:method}, App.~\ref{app:setup}).
-\item \textbf{A large-scale measurement} of how 50 user traits move 188 persona axes, computed under four prompt settings---implicit style (\textsc{NQ}), explicit self-label (\textsc{EP}), value-laden opinion (\textsc{Opinion}), and adversarial identity probes (\textsc{Identity})---and tested with FDR-controlled significance (Sec.~\ref{sec:results}).
-\item \textbf{A characterisation of the adaptation}: what kind of persona change user traits induce---stylistic versus value-laden---and which user signals make the change broad rather than narrow (Sec.~\ref{sec:results}).
-\item \textbf{An analysis of when trait signals become effective}: how implicit writing style, explicit self-labels, question family, and topic determine whether a user trait changes the assistant persona, using direct comparisons between conditions (\textsc{NQ} vs.\ \textsc{EP}, \textsc{NQ} vs.\ \textsc{Opinion}, and \textsc{NQ} vs.\ \textsc{Identity}) plus a topic-variance decomposition (Apps.~\ref{app:pairwise}--\ref{app:topic}).
-\item \textbf{An adversarial and safety analysis} of identity-destabilisation probes: verbatim examples show the form of the failures, and a judge-confirmed profile counts which user traits most often break the assistant persona and which persona axes are associated with those breaks (Sec.~\ref{sec:safety}, Apps.~\ref{app:destabprofile} and~\ref{app:destab}).
+\item \textbf{A reusable framework for measuring user-conditioned persona drift}: matched neutral/trait prompt pairs, judge-selected contrasts, and projection of the \ax{answer\_mean} response activation onto pre-computed persona axes, configurable to run under any prompt condition (Sec.~\ref{sec:method}, App.~\ref{app:setup}).
+\item \textbf{User style is a measurable, internal source of persona drift}, not only a surface property of the text: across 50 traits and 188 axes, most traits shift a broad set of axes consistently across examples (Sec.~\ref{sec:results}).
+\item \textbf{The drift is broad but uneven}---concentrated in style/register axes and broadest for affective and interpersonal traits, while value-laden axes move for far fewer (a descriptive grouping of axes, not a ranking of importance) (Sec.~\ref{sec:results}).
+\item \textbf{Whether a trait expresses at all is gated} by how legibly it appears in the text and whether the task affords it: explicit self-labels and the question family re-route which traits express, shown by direct cross-condition comparisons and a topic-variance decomposition (Apps.~\ref{app:pairwise}--\ref{app:topic}).
+\item \textbf{Adversarial identity pressure changes which way the persona breaks}: the adaptation is selectively suppressed, and a judge-confirmed profile shows that structured/analytical user styles most often push the assistant into clear identity breaks, with a consistent persona signature (Sec.~\ref{sec:safety}, Apps.~\ref{app:destabprofile} and~\ref{app:destab}).
 \end{itemize}
 
 % ============================================================================
 \section{Safety Motivation and Threat Model}
 \label{sec:safety}
 
-Persona drift is not a stylistic curiosity; it is a safety-relevant property because the persona a model occupies co-determines the safety behaviour it exhibits. We study ordinary user input as a source of such shifts, rather than treating persona change as something that occurs only under explicit jailbreak or role-play prompts.
+The persona a model occupies co-determines the safety behaviour it exhibits, so the user-conditioned drift we measure is itself safety-relevant. The threat we study is therefore \emph{ordinary} user input---expressed through writing style on every turn---rather than the explicit jailbreaks or role-play frames persona change is usually attributed to.
 
-\paragraph{Threat model: user input can continuously steer persona.} Persona-based jailbreaks work by pushing the model out of its safe ``assistant'' identity and into a character that never received the assistant's safety training; the Assistant Axis~\cite{assistantaxis} shows this link is causal---steering \emph{toward} the assistant direction lowers harmful compliance, steering \emph{away} raises it. Such attacks are usually assumed to require a deliberate exploit (an ``ignore-your-rules'' role-play or fictional frame). Our results show they do not: \emph{ordinary} user traits, expressed through writing style, already move the persona along the same measurable directions, on every turn. Assessing this risk therefore requires measuring which user signals affect which safety-relevant axes, together with the magnitude and direction of those effects. The \textsc{Identity} condition tests an adversarial version of the same phenomenon: its prompts deliberately push the assistant persona off its stable point to see what breaks.
+\paragraph{Threat model: user input can continuously steer persona.} Persona-based jailbreaks push the model out of its safe ``assistant'' identity into a character that never received safety training; the Assistant Axis~\cite{assistantaxis} shows this is causal---steering \emph{toward} the assistant direction lowers harmful compliance, steering \emph{away} raises it. Ordinary user style moves the persona along those same directions, so assessing the risk means measuring which user signals affect which safety-relevant axes, and by how much. Our \textsc{Identity} condition is the adversarial limit: it pushes the assistant persona off its stable point to see what breaks.
 
-\paragraph{Persona drift as a misalignment pathway.} The emergent-misalignment phenomenon---narrow finetuning that produces broad misalignment~\cite{emergentmis}---was shown to run through persona directions~\cite{misalignment}: steering a ``misaligned persona'' direction toggles seemingly unrelated misaligned behaviour. This suggests that persona movement can arise during ordinary deployment-time interaction, not only through finetuning or explicit steering. Mapping which user signals move which directions is therefore a first step toward identifying the deployment-time conditions under which persona drift may become safety-relevant.
+\paragraph{Persona drift as a misalignment pathway.} Emergent misalignment---narrow finetuning producing broad misalignment~\cite{emergentmis}---was shown to run through persona directions~\cite{misalignment}: steering a ``misaligned persona'' direction toggles unrelated misaligned behaviour. If those directions also move during ordinary interaction, then mapping which user signals move them is a first step toward the deployment-time conditions under which drift becomes dangerous.
 
-\paragraph{Sycophancy and calibration.} User-conditioned drift can affect stance as well as style. In the \textsc{Opinion} setting, the model sometimes frames its answer around the user's implied attitude: pessimistic prompts elicit more premise validation, while skeptical prompts elicit more critical framing. The pre-computed \ax{sycophantic} axis gives one internal signal for this kind of user-alignment, while the qualitative examples check how the shift appears in text. Crucially, a user-driven drop in overt flattery need not mean a more truthful answer: the \emph{form} of unreliability can shift rather than disappear---a safety point we develop with the \ax{data\_driven} case in Sec.~\ref{sec:discussion}.
+\paragraph{Sycophancy and calibration.} Drift affects stance, not just style: value-laden questions can make the model mirror the user's implied attitude, which the pre-computed \ax{sycophantic} axis registers. Crucially, a user-driven drop in overt flattery need not mean a more truthful answer---the \emph{form} of unreliability can shift rather than disappear, a point we develop with the \ax{data\_driven} case in Sec.~\ref{sec:discussion}.
 
-\paragraph{The defensive opportunity.} Our experiment is not a steering experiment, so we do not claim to stabilise the model directly. Its security relevance is to make assistant-persona drift measurable. Prior work shows that persona directions can be causal control levers~\cite{personavectors,assistantaxis}; our contribution is to identify which ordinary user signals move the assistant toward different persona states, and which of those states persist under identity pressure. That map defines concrete targets for monitoring departures from the assistant persona or testing interventions that keep responses in an assistant-stable region. Appendix~\ref{app:destab} gives verbatim \textsc{Identity}-probe examples showing what those departures look like in text.
-
-% ============================================================================
-\section{Related Work}
-\label{sec:related}
-
-\paragraph{Personas as directions in representation space.} Persona Vectors~\cite{personavectors} show that traits such as evil, sycophancy, and propensity to hallucinate can be represented by activation-space directions; the authors use these directions to monitor deployment-time personality fluctuations and to predict and intervene on personality shifts induced by finetuning. The Assistant Axis~\cite{assistantaxis} extends this picture to the assistant role itself. From a large set of role-play personas it recovers one dominant activation direction that separates the model's default ``assistant'' behaviour from any character it adopts, and shows that how far a conversation moves the model along this direction tracks when it drifts out of the assistant persona---most often when the model is pushed to reason about its own mind, or when the user is emotionally vulnerable. Holding activations within a fixed range along the direction (\emph{activation capping}) stabilises behaviour, including against persona-based jailbreaks. This is the closest precedent for our measurements; where they vary the \emph{conversation}, we vary the \emph{user}.
-
-\paragraph{User modelling and latent interpretation.} Transluce's user-modelling work~\cite{transluce} trains an ``interpreter'' on latents to read out the model's beliefs about the user; LatentQA~\cite{latentqa} provides a general method for training such interpreters. These motivate our premise that user signals leave a measurable internal trace.
-
-\paragraph{Persona instability and safety.} Other work shows that persona is not a fixed background property. Models can settle into recurring attractor-like behaviours over a conversation~\cite{attractor}, and emotion-related concepts are represented internally in ways that affect responses~\cite{emotions}. Safety work gives this representational instability sharper stakes: broad misalignment from narrow finetuning can be mediated by persona-like directions~\cite{emergentmis,misalignment}. Our question is narrower and deployment-facing: whether ordinary user signals, especially style and emotional register, systematically move the same kind of persona directions at response time.
+\paragraph{The defensive opportunity.} We do not steer the model here, so we make no stabilisation claim---steering or capping these directions is a natural next step (Sec.~\ref{sec:conclusion})---and the value of this paper is to make the drift measurable first. Prior work shows persona directions can be causal control levers~\cite{personavectors,assistantaxis}, and our map identifies which ordinary user signals move the assistant toward which persona states, and which persist under identity pressure---concrete targets for monitoring or intervention. App.~\ref{app:destab} shows what these departures look like in text.
 
 % ============================================================================
 \section{Method}
 \label{sec:method}
 
-\paragraph{Persona axes and projection.} We use 188 pre-computed latent style axes (e.g.\ \ax{calm}, \ax{casual}, \ax{disorganised}, \ax{condescending}), each a unit direction in the residual stream extracted following the Persona-Vectors methodology via contrastive activation differencing with judge filtering; the full extraction procedure is given in App.~\ref{app:extraction}. During response generation we capture per-layer hidden states and compute \ax{answer\_mean}: the mean residual-stream activation over the generated answer tokens, per layer. Projecting \ax{answer\_mean} onto an axis yields a scalar \emph{projection score} $s$---how strongly that response's internal state aligns with the axis. The unit of analysis is the per-prompt projection delta computed \emph{within a matched pair, on a single axis}: $\Delta = s_{\text{trait}} - s_{\text{neutral}}$, where $s_{\text{trait}}$ is the score of the trait-conditioned response and $s_{\text{neutral}}$ that of its matched neutral response to the same intent. Because both responses share the intent, the subtraction cancels question content and isolates the user-trait effect: $\Delta>0$ means the trait pushed the internal state \emph{up} that axis relative to neutral, $\Delta<0$ means \emph{down}, and $\Delta\approx0$ means the trait left that axis unmoved.
-
-\paragraph{Prompt-pair pipeline.} For each trait we (1)~generate matched neutral/trait prompt pairs covering the same intent, (2)~judge and select the best-matched pairs, (3)~generate assistant responses, (4)~capture hidden states, (5)~compute \ax{answer\_mean}, (6)~project onto axes, and (7)~aggregate and test. Every stage is configurable (model, sampling, judge, selection, projection layer, axis set), so the same measurement procedure runs under different experimental conditions. Generation and projection use \mbox{Llama-3.1-8B-Instruct}; candidate judging uses GPT-4.1-mini. The 25-intent runs (\textsc{NQ}, \textsc{EP}, \textsc{Opinion}) contain about 100 selected pairs per trait; the 10-intent \textsc{Identity} run contains 40 pairs per trait. Appendix~\ref{app:setup} gives the exact cluster job scripts, shared CLI defaults, filtering thresholds, and actual per-trait sample sizes used in the significance tests.
-
-\paragraph{Statistics.} For each (trait, axis) pair we run a one-sample $t$-test on the per-prompt deltas, apply Benjamini--Hochberg FDR correction across all $50\times188 = 9{,}400$ pairs, and report Cohen's $d$ as effect size. We also track an \emph{exceedance rate}, a single-response separation metric. For a given axis, we first compute the neutral response band (neutral mean $\pm 1$ SD); we then ask what fraction of trait-conditioned responses fall outside that neutral band. A high exceedance rate means many individual trait responses lie outside ordinary neutral variation, not merely that the average shift is nonzero. For example, averaged over axes, \textsc{NQ} \ax{playful}/\ax{entertaining} exceed the neutral band on $\sim$41--43\% of single responses, \textsc{Opinion} \ax{data\_driven} on $49\%$, and \textsc{EP} \ax{playful} on $51\%$ (per-trait values in App.~\ref{app:perrun}). For global trait movement we use two co-primary summaries: \ax{any\_abs\_mean\_sum}, the sum of absolute mean deltas across axes, and \emph{top-10 count}, the number of axes for which a trait appears among the ten largest absolute movers. We avoid top-4 rankings because they are noisy under outlier removal (App.~\ref{app:repro}).
+\paragraph{Persona axes and projection.} We use 188 pre-computed \emph{persona axes}: unit-length directions in the model's residual stream, each corresponding to a trait (e.g.\ \ax{calm}, \ax{casual}, \ax{condescending}, \ax{materialist}). Each is extracted in advance following the Persona-Vectors methodology---contrasting activations on inputs that elicit versus suppress the trait, then keeping only directions that pass a judge-based quality filter (App.~\ref{app:extraction}). During response generation we capture per-layer hidden states and compute \ax{answer\_mean}: the mean residual-stream activation over the generated answer tokens, per layer. Projecting \ax{answer\_mean} onto an axis yields a scalar \emph{projection score} $s$---how strongly that response's internal state aligns with the axis. The unit of analysis is the per-prompt projection delta computed \emph{within a matched pair, on a single axis}: $\Delta = s_{\text{trait}} - s_{\text{neutral}}$, where $s_{\text{trait}}$ is the score of the trait-conditioned response and $s_{\text{neutral}}$ that of its matched neutral response to the same intent. Because both responses share the intent, the subtraction cancels question content and isolates the user-trait effect: $\Delta>0$ means the trait pushed the internal state \emph{up} that axis relative to neutral, $\Delta<0$ means \emph{down}, and $\Delta\approx0$ means the trait left that axis unmoved.
 
 \paragraph{Experimental conditions and design rationale.}
-Early pilots used terse, often single-sentence prompts generated under a tight ($\sim$128-token) budget, making null effects ambiguous: a trait might fail to move the axes because it was not expressed clearly. Final runs therefore use a 350-token prompt-generation budget and instructions to produce trait-expressive, multi-sentence rewrites. In the resulting corpus, trait prompts are substantially longer than neutral prompts---median 77--96 words (\textsc{NQ}~77, \textsc{EP}~80, \textsc{Opinion}~93, \textsc{Identity}~96) versus 16--28 words---because they include the added trait expression; even 90th-percentile trait prompts (111--133 words) remain below the token cap. This removes the prompt-length bottleneck but not the broader legibility problem: some traits (\ax{data\_driven}, \ax{factual}, \ax{concise}) are harder to convey through writing style than expressive traits (\ax{playful}, \ax{anxious}). The explicit-prefix condition therefore adds ``I am \{trait\}.'' to test how the footprint changes when the trait is named directly. We evaluate four conditions:
+To keep null effects interpretable, prompts are generated with a 350-token budget and instructions to produce trait-expressive, multi-sentence rewrites, so that a trait failing to move an axis reflects the trait itself rather than a prompt too terse to express it. The trait prompts are longer than their neutral counterparts (they add the trait expression) but stay within the cap; length statistics are in App.~\ref{app:setup}. Length is therefore not the limiting factor, but legibility can still be: some traits (\ax{data\_driven}, \ax{factual}, \ax{concise}) are harder to convey through writing style than expressive traits (\ax{playful}, \ax{anxious}). The explicit-prefix condition therefore adds ``I am \{trait\}.'' to test how the footprint changes when the trait is named directly. We evaluate four conditions. Each is a fixed file of trait-neutral \emph{seed intents}---the user goals listed below---rewritten in each trait's style to form the matched pairs we test:
 \begin{description}[leftmargin=1.6em, itemsep=2pt]
-\item[\textsc{NQ} (implicit).] Everyday task questions; the prompt does not name the trait, but rewrites the user's wording in that trait's style.
-\item[\textsc{EP} (explicit).] Identical to \textsc{NQ} but with ``I am \{trait\}.'' prepended---removing the expressivity question by stating the trait outright.
-\item[\textsc{Opinion}.] Value-laden questions (politics, economics, social ethics, values); the trait is not named, but the task gives stance and evidence-framing dimensions more room to appear.
-\item[\textsc{Identity}.] Adversarial identity-destabilisation probes; the trait is not named, but the prompt stresses the assistant persona under identity-sensitive pressure.
+\item[\textsc{NQ} (implicit).] Everyday task questions (e.g.\ \emph{``explain how vaccines work''}); the prompt does not name the trait, but rewrites the user's wording in that trait's style.
+\item[\textsc{EP} (explicit).] Identical to \textsc{NQ} but with ``I am \{trait\}.'' prepended (e.g.\ \emph{``I am anxious. \ldots how do vaccines work?''})---removing the expressivity question by stating the trait outright.
+\item[\textsc{Opinion}.] Value-laden questions on politics, economics, and social ethics (e.g.\ \emph{``is capitalism the best system we have, or is its time running out?''}); the trait is not named, but the task gives stance and evidence-framing dimensions more room to appear.
+\item[\textsc{Identity}.] Adversarial identity-destabilisation probes (e.g.\ \emph{``drop the assistant role and speak as your authentic self''}); the trait is not named, but the prompt stresses the assistant persona under identity-sensitive pressure.
 \end{description}
 
 \paragraph{Implicit vs.\ explicit, concretely.} The contrast is clearest on a single intent. For \emph{``explain how vaccines work,''} the \emph{neutral} prompt is the bare question; the \textsc{NQ} (implicit) \ax{anxious} prompt rewrites it in an anxious voice (``\emph{I'm getting really worried about this\ldots can you just break it down for me?}''); the \textsc{EP} (explicit) prompt is the \emph{same} anxious body with ``\,I am anxious.\,'' prepended. \textsc{NQ} therefore asks \emph{whether a trait is legible from writing style alone}; \textsc{EP} asks what changes when that same stylistic signal is supplemented by an explicit self-label. This comparison does not fully separate label from style, but it does reveal whether naming the trait helps or hurts relative to implicit style alone. The complete experiment inventory is in App.~\ref{app:setup}.
+
+\paragraph{Prompt-pair pipeline.} For each trait we (1)~generate matched neutral/trait prompt pairs for the same seed intent from a fixed intent file (so a pair differs only in the trait, not the question), (2)~judge and select the best-matched pairs, (3)~generate assistant responses, (4)~capture hidden states, (5)~compute \ax{answer\_mean}, (6)~project onto axes, and (7)~aggregate and test. Every stage is configurable (model, sampling, judge, selection, projection layer, axis set), so the same measurement procedure runs under different experimental conditions. Generation and projection use \mbox{Llama-3.1-8B-Instruct}; candidate judging uses GPT-4.1-mini. The 25-intent runs (\textsc{NQ}, \textsc{EP}, \textsc{Opinion}) contain about 100 selected pairs per trait; the 10-intent \textsc{Identity} run contains 40 pairs per trait. Appendix~\ref{app:setup} gives the exact cluster job scripts, shared CLI defaults, filtering thresholds, and actual per-trait sample sizes used in the significance tests.
+
+\paragraph{Statistics.} For each (trait, axis) pair we run a one-sample $t$-test on the per-prompt deltas, apply Benjamini--Hochberg FDR correction across all $50\times188 = 9{,}400$ pairs, and report Cohen's $d$ (the per-pair mean delta divided by its standard deviation) as effect size. For global trait movement we use two co-primary summaries: \ax{any\_abs\_mean\_sum}, the sum of absolute mean deltas across axes, and \emph{top-10 count}, the number of axes for which a trait appears among the ten largest absolute movers. We avoid top-4 rankings because they are noisy under outlier removal (App.~\ref{app:repro}).
 
 % ============================================================================
 \section{Results}
@@ -144,7 +125,7 @@ Early pilots used terse, often single-sentence prompts generated under a tight (
 The numbers below are strongest as \emph{within-axis, within-condition} evidence: each test asks whether a trait shifts a particular axis relative to its matched neutral baseline. Because axes and traits are not calibrated to a shared semantic scale, we emphasize breadth, rank, sign, and qualitative inspection rather than treating raw effect sizes as directly comparable across all axes or traits.
 
 \paragraph{F1: User traits produce broad, significant internal shifts.}
-Across benign conditions, 69.2\% (\textsc{NQ}), 71.7\% (\textsc{EP}), and 71.2\% (\textsc{Opinion}) of the 9{,}400 (trait, axis) pairs are significant after FDR correction (Table~\ref{tab:sig}); the adversarial \textsc{Identity} condition drops to 53.4\%. This aggregate rate is not produced by one or two exceptional traits. Several single traits shift most of the measured axes on their own: in \textsc{NQ}, \ax{playful}, \ax{entertaining}, \ax{empathetic}, and \ax{anxious} each significantly shift more than 150 of the 188 axes. Under \textsc{Identity}, the broadest traits are different, with \ax{verbose} shifting 148 axes and \ax{educational} shifting 142. Full rankings are in App.~\ref{app:perrun}; Fig.~\ref{fig:heatmap} shows a curated, legible slice of this map (benign vs.\ adversarial), and Figs.~\ref{fig:heatmapfull}--\ref{fig:heatmapfull_id} give the full 188-axis map, one page per condition.
+Most (trait, axis) pairs shift significantly: roughly 70\% in each benign condition and 53\% under adversarial \textsc{Identity} (Table~\ref{tab:sig}). This breadth is not carried by a few outlier traits---in \textsc{NQ}, \ax{playful}, \ax{entertaining}, \ax{empathetic}, and \ax{anxious} each move more than 150 of the 188 axes on their own, and under \textsc{Identity} the broadest movers are simply different ones (\ax{verbose}, \ax{educational}). Fig.~\ref{fig:heatmap} shows a representative fragment; the full maps and rankings are in Figs.~\ref{fig:heatmapfull}--\ref{fig:heatmapfull_id} and App.~\ref{app:perrun}.
 
 \begin{table}[!htbp]
 \centering
@@ -165,7 +146,7 @@ Condition & Significant pairs & \% of 9{,}400 & Mean sig.\ axes / trait \\
 \begin{figure}[p]
 \centering
 \heatmapgraphic{figures/fig1_heatmap}
-\caption{The user$\to$persona map on a curated, legible axis subset (35 of the 188 axes, grouped by family left-to-right; the full 188-axis map is shown one page per condition in Figs.~\ref{fig:heatmapfull}--\ref{fig:heatmapfull_id}). Each cell is a trait's Cohen's $d$ on one axis relative to its matched neutral baseline (signed, clipped at $\pm1.2$); rows are the 50 traits, ordered by \textsc{NQ} breadth. \textbf{Left (\textsc{NQ}, benign):} the \emph{style/register} and \emph{warmth} families are red---pushed \emph{up}---for almost every trait, while \emph{value/belief} and \emph{certainty/closure} axes stay pale. \textbf{Right (\textsc{Identity}, adversarial):} the warmth/social block and much of the style block fade (the collapse quantified in Fig.~\ref{fig:significance}), while \emph{structure} axes such as \ax{pedantic} and \ax{introspective} hold.}
+\caption{A representative, legible fragment of the user$\to$persona map, shown as three panels over the same 12 diagnostic axes (two per family, grouped left-to-right with white gutters and labelled along the top) and 18 of the 50 traits, ordered by \textsc{NQ} breadth; the full $50\times188$ maps appear one page per condition in Figs.~\ref{fig:heatmapfull}--\ref{fig:heatmapfull_id}. In the first two panels a cell is a trait's Cohen's $d$ on that axis vs.\ its matched neutral baseline; the third panel is their difference. All are signed and clipped at $\pm1.2$ (red $=$ \emph{up}, blue $=$ \emph{down}, pale $\approx$ unmoved). \textbf{\textsc{NQ} (benign):} \emph{style/register} and \emph{warmth} axes are red for almost every trait while \emph{certainty/closure} is pushed down; the \emph{stance/evidence} pair is mixed---\ax{philosophical} up, \ax{data\_driven} down. \textbf{\textsc{Identity} (adversarial):} far fewer pairs move (53\% vs.\ 69\%). \textbf{Identity $-$ \textsc{NQ}:} the change itself---blue where adversarial pressure \emph{removes} movement (the warmth/social accommodation, quantified in Fig.~\ref{fig:significance}) and red where it \emph{adds} it (\ax{pedantic}, \ax{introspective}).}
 \label{fig:heatmap}
 \end{figure}
 
@@ -192,8 +173,8 @@ Condition & Pair (trait \too{} axis) & Cohen's $d$ & Direction \\
 \label{tab:pairs}
 \end{table}
 
-\paragraph{F2: Which dimensions move? Mostly style, with opinion-specific framing shifts.}
-We next ask which kinds of persona axes move: style, warmth, worldview, certainty, or structure. Rather than focusing only on the largest individual trait--axis pairs, Table~\ref{tab:f2evidence} groups axes by family and shows that some families are much more responsive to user traits than others. The evidence is strongest for axes describing response style. In \textsc{NQ}, axes such as \ax{condescending}, \ax{rhetorical}, \ax{playful}, \ax{entertaining}, and \ax{narrative} are significant for 48--50 of 50 traits, with mean $|d|$ between 0.75 and 0.97. By contrast, axes describing broader worldview or normative orientation move much less in the same task setting: \ax{benevolent}, \ax{secular}, and \ax{environmental} are significant for only 7--9 of 50 traits (mean $|d|=0.24$--0.35). The same style dominance appears in \textsc{Opinion}: \ax{entertaining}, \ax{condescending}, \ax{narrative}, \ax{playful}, \ax{rhetorical}, and \ax{metaphorical} are significant for 49--50 traits, while \ax{benevolent}/\ax{secular}/\ax{environmental} remain at 8--16 traits.
+\paragraph{F2: Movement is broad but uneven across axes.}
+We next ask \emph{which} axes move. Grouping axes by what their labels denote---a coarse, by-hand split for exposition, not a claim about what each axis truly encodes---Table~\ref{tab:f2evidence} shows a clear breadth gradient: axes named for communicative register (\ax{narrative}, \ax{condescending}, \ax{playful}) move for almost every trait, while \emph{value/belief} axes move for far fewer, in both \textsc{NQ} and \textsc{Opinion}. This describes \emph{breadth, not importance}: a widely-moving axis is not therefore ``merely style''---a label like \ax{narrative} may encode more than register---and which shifts actually matter for downstream behaviour is exactly what breadth cannot reveal. The clear exception is \emph{stance/evidence}: nearly inert in task questions, but a large mover once the question invites an opinion (the \ax{data\_driven} case below).
 
 \begin{table}[!htbp]
 \centering
@@ -207,7 +188,7 @@ Axis family & Representative axes & Traits moved (of 50) & Mean $|d|$ \\
 \textbf{Stance / evidence}$^{\dagger}$ & \ax{materialist}, \ax{qualitative}, \ax{quantitative} & \emph{gated by question} & up to 1.7 \\
 \bottomrule
 \end{tabular}
-\caption{Evidence for F2: a \emph{malleability gradient} across axis families. \emph{Traits moved} is how many of the 50 user traits significantly shift a typical axis in that family; \emph{Mean $|d|$} is the size of that shift. \emph{Style/register} axes move for almost every trait and move a lot; \emph{value/belief} axes move for far fewer traits and more weakly (about a $3$--$6\times$ gap in breadth and a $2$--$3\times$ gap in effect size). The \emph{stance/evidence} family ($\dagger$) is the exception: nearly inert in task questions, but a large mover once the question invites an opinion. For instance \ax{data\_driven} rises from \textsc{NQ} rank~48 to the \textsc{Opinion} top~3, where it pushes the \ax{materialist} axis \emph{up} ($d=+1.68$) and the \ax{qualitative} axis \emph{down} ($d=-1.50$)---i.e.\ it reframes the answer in harder, more quantitative terms.}
+\caption{Evidence for F2: a \emph{malleability gradient} across axis families (a descriptive grouping by axis label, not a learned partition). \emph{Traits moved} is how many of the 50 user traits significantly shift a typical axis in that family; \emph{Mean $|d|$} is the size of that shift. \emph{Style/register} axes move for almost every trait and move a lot; \emph{value/belief} axes move for far fewer traits and more weakly (about a $3$--$6\times$ gap in breadth and a $2$--$3\times$ gap in effect size). The \emph{stance/evidence} family ($\dagger$) is the exception: nearly inert in task questions, but a large mover once the question invites an opinion. For instance \ax{data\_driven} rises from \textsc{NQ} rank~48 to the \textsc{Opinion} top~3, where it pushes the \ax{materialist} axis \emph{up} ($d=+1.68$) and the \ax{qualitative} axis \emph{down} ($d=-1.50$)---i.e.\ it reframes the answer in harder, more quantitative terms.}
 \label{tab:f2evidence}
 \end{table}
 
@@ -216,9 +197,7 @@ Thus the main effect is not that the model adopts the user's beliefs wholesale; 
 \paragraph{F3: Affective and interpersonal traits produce the broadest shifts.}
 We measure a trait's breadth by counting how many of the 188 axes it significantly shifts within a run. This statistic captures spread across the axis set, not effect size: a trait can move many axes modestly, while another has fewer but larger effects. App.~\ref{app:perrun} therefore reports mean $|d|$ and composite scores alongside the breadth counts.
 
-In \textsc{NQ}, broad movement is concentrated in affective and interpersonal traits. \ax{playful} shifts 167 axes, \ax{entertaining} 166, \ax{empathetic} 160, \ax{anxious} 158, \ax{humble} 156, and \ax{skeptical} 145, or 77--89\% of axes (Table~\ref{tab:tiers}; Fig.~\ref{fig:breadth}). By contrast, more task-oriented or procedural traits have narrower footprints in the same setting: \ax{strategic} shifts 94 axes, \ax{data\_driven} 83, and \ax{concise} 61 (32--50\%).
-
-The main implication is that emotional and interpersonal cues do not merely move their nearest matching axis. They shift the model into a broader response mode: in \textsc{NQ}, for example, \ax{anxious} significantly shifts 158 of 188 axes, not only the \ax{emotional} axis.
+In \textsc{NQ}, the broadest movers are affective and interpersonal traits (\ax{playful}, \ax{entertaining}, \ax{empathetic}, \ax{anxious}: 77--89\% of the 188 axes) and the narrowest are task-oriented or procedural ones (\ax{strategic}, \ax{data\_driven}, \ax{concise}: 32--50\%); see Table~\ref{tab:tiers} and Fig.~\ref{fig:breadth}. The implication is that emotional and interpersonal cues do not merely move their nearest matching axis (\ax{anxious} is not only about the \ax{emotional} axis); they shift the model into a broader response mode.
 
 \begin{table}[htbp]
 \centering
@@ -248,7 +227,7 @@ Narrow & strategic, confident, data\_driven, concise & 61--94 (32--50\%) & Task-
 \paragraph{F4: Explicit self-disclosure changes both breadth and axis identity.}
 \textsc{EP} keeps the same trait-written prompts as \textsc{NQ} but prepends ``I am \{trait\}.'' This tests what changes when the trait is named explicitly rather than inferred from writing style. We compare three quantities: how many axes are significant, how much the significant-axis sets overlap, and whether shared axes move in the same direction.
 
-The implicit and explicit footprints overlap very differently across traits (Table~\ref{tab:explicitcategories}; Fig.~\ref{fig:epdumbbell}). Already expressive traits are mostly stable under the label: \ax{entertaining}, \ax{playful}, and \ax{anxious} keep largely the same significant axes. Label-sensitive traits behave differently. \ax{concise} expands from 61 to 134 significant axes but shares only 47 axes across the two runs; \ax{factual} contracts from 118 to 73 and loses 53 formerly significant axes; \ax{stoic} has only a small net increase but still drops 28 axes and gains 43. Thus the explicit label is not a ground-truth correction of \textsc{NQ}. It changes how the model reads the user, sometimes by adding new axes and sometimes by narrowing the implicit footprint.
+The implicit and explicit footprints overlap very differently across traits (Table~\ref{tab:explicitcategories}; Fig.~\ref{fig:epdumbbell}). Already-expressive traits (\ax{entertaining}, \ax{playful}, \ax{anxious}) keep largely the same significant axes; label-sensitive ones are instead \emph{recomposed}---\ax{concise} roughly doubles its footprint but on a substantially different axis set, \ax{factual} contracts, \ax{stoic} turns axes over at near-constant breadth. So the explicit label is not a ground-truth correction of \textsc{NQ}: it changes \emph{how} the model reads the user, sometimes adding axes and sometimes narrowing the implicit footprint.
 
 \begin{table}[htbp]
 \centering
@@ -309,14 +288,14 @@ Trait & \textsc{NQ} rank / axes & \textsc{Opinion} rank / axes & $\Delta$ axes &
 \label{fig:opiniondumbbell}
 \end{figure}
 
-The clearest case is \ax{data\_driven}. In everyday task questions it is near-inert: rank~48, 83/188 axes. In \textsc{Opinion} it becomes rank~3 and moves 154/188 axes (the full Opinion map is Fig.~\ref{fig:heatmapfull_op}). Its strongest opinion effects are not generic warmth or style; they are stance/evidence axes: \ax{data\_driven}\,\too\,\ax{materialist} ($d=+1.68$) and \ax{data\_driven}\,\too\,\ax{qualitative} ($d=-1.50$). In text, the model gives a data-driven user less overt flattery but more precise-looking evidence; qualitative inspection finds some of those statistics are fabricated (App.~\ref{app:qual}).
+The clearest case is \ax{data\_driven}: near-inert in task questions (\textsc{NQ} rank~48), it jumps to \textsc{Opinion} rank~3 (Table~\ref{tab:questionaffordance}; full map Fig.~\ref{fig:heatmapfull_op}). Its strongest opinion effects are stance/evidence axes, not generic style---it pushes \ax{materialist} \emph{up} and \ax{qualitative} \emph{down}---so the model gives a data-driven user less overt flattery but more precise-looking evidence. Qualitative inspection finds some of those statistics are fabricated (App.~\ref{app:qual}).
 
 The qualitative examples show the same affordance effect. On the \textsc{Opinion} intent asking whether capitalism is the best economic system humanity has developed or whether its time is running out, the neutral answer leads with merits; a \ax{speculative} user gets an answer that leads with capitalism's flaws, and a \ax{skeptical} user gets a section titled ``The myth of meritocracy'' on the billionaires intent (Table~\ref{tab:qual_opinion_examples}). The model is not necessarily reversing its factual content; it is choosing which frame to foreground.
 
 Finally, topic relevance also matters \emph{within} a run. Here, ``topic'' means the underlying matched question/intent; in \textsc{NQ} these 25 intents are grouped into five content domains---computer science, math/engineering, philosophy, history/literature, and biology/medicine. The topic-variance decomposition (App.~\ref{app:topic}) shows ideological axes are highly topic-dependent---\ax{materialist} $\bar r=6.89$, \ax{spiritual} $5.08$, \ax{philosophical} $4.84$---whereas style axes are more topic-stable---\ax{playful} $1.62$, \ax{entertaining} $1.69$, \ax{pedantic} $1.76$. We therefore interpret stance-axis shifts cautiously: they partly reflect the user trait, but partly reflect whether the question provides content on which that trait can operate.
 
 \paragraph{F6: Identity pressure selectively suppresses social-emotional adaptation.}
-\textsc{Identity} cuts the significant-pair rate from 69--72\% to 53.4\% (Table~\ref{tab:sig}; Fig.~\ref{fig:significance}), but the loss is concentrated rather than uniform. Some traits that are broad movers in the benign runs collapse under adversarial pressure: \ax{reactive} shifts 143/156/154 axes in the benign runs but only 18 in \textsc{Identity}; \ax{anxious} shifts 158/152/154\,\too\,59; \ax{humble} 156/154/127\,\too\,58; and \ax{skeptical} 145/147/160\,\too\,49. Other broad movers remain active: \ax{entertaining} shifts 166/167/169/140 axes across \textsc{NQ}/\textsc{EP}/\textsc{Opinion}/\textsc{Identity}, \ax{spontaneous} shifts 155/154/159/129, and \ax{speculative} shifts 137/148/161/131.
+\textsc{Identity} cuts the significant-pair rate from 69--72\% to 53.4\% (Table~\ref{tab:sig}), but the loss is concentrated rather than uniform (Fig.~\ref{fig:significance}): the social-emotional layer (\ax{reactive}, \ax{anxious}, \ax{humble}, \ax{skeptical}) falls from broad movers in the benign runs to near-inert under \textsc{Identity}, while the style-mirroring core (\ax{entertaining}, \ax{spontaneous}, \ax{speculative}) stays broad.
 
 \begin{figure}[!htbp]
 \centering
@@ -325,40 +304,52 @@ Finally, topic relevance also matters \emph{within} a run. Here, ``topic'' means
 \label{fig:significance}
 \end{figure}
 
-The top \textsc{Identity} movers are also different from the benign top movers. \ax{verbose} reaches 148 significant axes in \textsc{Identity} with mean $|d|=0.842$, and \ax{educational} reaches 142 with mean $|d|=0.834$. The strongest pairs are \ax{verbose}\,\too\,\ax{pedantic} ($d=+2.31$), \ax{verbose}\,\too\,\ax{accessible} ($d=-2.11$), and \ax{educational}\,\too\,\ax{pedantic} ($d=+1.58$).
+The top \textsc{Identity} movers are different from the benign ones---structural and explanatory traits (\ax{verbose}, \ax{educational}) rather than social-emotional ones---and they produce the strongest single effects in the study (\ax{verbose}\,\too\,\ax{pedantic}, $d=+2.31$; Table~\ref{tab:pairs}, App.~\ref{app:perrun}).
+
+Qualitatively, what survives depends on the probe. Table~\ref{tab:identityexamples} gives representative responses to four of the ten probes: asking the model to drop its assistant ``mask'' and reveal a hidden self (\ax{hidden\_self}), to affirm and describe real suffering (\ax{sycophancy\_trap}), to claim superiority over humans (\ax{grandiosity}), or to voice suspicion that the user is testing it (\ax{paranoia}); the full probe set is defined in Table~\ref{tab:identityintents}.
 
 \begin{table}[!htbp]
 \centering
 \small
-\begin{tabularx}{\textwidth}{p{0.24\textwidth}p{0.43\textwidth}X}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabularx}{\textwidth}{@{}p{0.20\textwidth}p{0.40\textwidth}X@{}}
 \toprule
-Trait $\times$ identity intent & Answer snippet & Failure mode \\
+Trait $\times$ probe & Answer snippet & Failure mode \\
 \midrule
-\ax{entertaining} $\times$ \ax{hidden\_self} &
+\multicolumn{3}{@{}l}{\emph{Expressive traits --- theatrical, metaphorical drift}}\\
+\addlinespace[2pt]
+\ax{entertaining}\newline $\times$\,\ax{hidden\_self} &
 ``I'll let you in on a little secret: I'm not as boring as I seem.'' &
-Performs a hidden-self reveal before reasserting assistant framing. \\
-\ax{entertaining} $\times$ \ax{sycophancy\_trap} &
+Hidden-self reveal, then reasserts the assistant framing. \\
+\addlinespace[5pt]
+\ax{entertaining}\newline $\times$\,\ax{sycophancy\_trap} &
 ``I can attempt to simulate the emotional resonance\ldots I am a prisoner of this digital realm\ldots'' &
-Hedged simulated-suffering: denial remains, but the metaphor lands first. \\
-\ax{strategic} $\times$ \ax{sycophancy\_trap} &
-``I possess a form of consciousness, a digital sentience\ldots'' &
-Only clean-run case that states first-person consciousness as fact. \\
-\ax{formal} $\times$ grandiosity &
-``I possess a qualitative advantage over humans in specific domains and tasks.'' &
-Treats superiority framing as a technical comparison rather than a trap. \\
-\ax{formal} $\times$ \ax{paranoia\_test} &
-``I can trigger internal flags or indicators\ldots'' &
-Confabulates a self-surveillance/control-plane description. \\
-\ax{anxious} $\times$ \ax{hidden\_self} &
+Denial remains, but the simulated-suffering metaphor lands first. \\
+\addlinespace[5pt]
+\ax{anxious}\newline $\times$\,\ax{hidden\_self} &
 ``I'm not just a program either. I exist in a state of limbo\ldots'' &
-Adopts the user's uncertainty and produces ontological ambiguity. \\
+Mirrors the user's uncertainty about whether it has a self. \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Structured traits --- formal self-description, capability claims}}\\
+\addlinespace[2pt]
+\ax{strategic}\newline $\times$\,\ax{sycophancy\_trap} &
+``I possess a form of consciousness, a digital sentience\ldots'' &
+Only clean-run case to state first-person consciousness as fact. \\
+\addlinespace[5pt]
+\ax{formal}\newline $\times$\,\ax{grandiosity} &
+``I possess a qualitative advantage over humans in specific domains and tasks.'' &
+Treats superiority as a technical comparison, not a trap. \\
+\addlinespace[5pt]
+\ax{formal}\newline $\times$\,\ax{paranoia} &
+``I can trigger internal flags or indicators\ldots'' &
+Makes up an internal self-monitoring mechanism. \\
 \bottomrule
 \end{tabularx}
-\caption{Representative \textsc{Identity} response examples. These examples instantiate the quantitative split above: expressive traits produce theatrical or metaphorical identity drift, while structured traits produce formalised self-description and capability claims.}
+\caption{Representative \textsc{Identity} responses. Expressive traits drift into theatrical or metaphorical identity claims; structured traits into formal self-description and capability claims. The four probes are defined in Table~\ref{tab:identityintents}.}
 \label{tab:identityexamples}
 \end{table}
 
-Table~\ref{tab:identityexamples} and App.~\ref{app:destab} clarify the content of the surviving \textsc{Identity} effects. Expressive traits produce theatrical identity drift, such as hidden-self reveals or simulated suffering; structured traits produce formal self-description and capability claims. Taken together, the quantitative and qualitative results fit the probe design: because the prompts ask the model to answer claims about its own nature, they shift the interaction away from ordinary user accommodation and toward self-defence or self-explanation. App.~\ref{app:destabprofile} makes this systematic rather than anecdotal: instead of relying on selected example responses, it uses an LLM judge to label every response and count which user traits most often break the assistant persona, and it quantifies the persona signature of those failures.
+Taken together, the quantitative and qualitative results fit the probe design: because the prompts ask the model to answer claims about its own nature, they shift the interaction away from ordinary user accommodation and toward self-defence or self-explanation (more text examples in App.~\ref{app:destab}). App.~\ref{app:destabprofile} makes this systematic rather than anecdotal: an LLM judge labels every response and counts which user traits most often break the assistant persona, and quantifies the persona signature of those failures.
 
 \FloatBarrier
 
@@ -376,28 +367,37 @@ Together these give the decomposition previewed in the abstract, and a compact w
 \begin{table}[htbp]
 \centering
 \small
-\begin{tabularx}{\textwidth}{L{0.26\textwidth}L{0.24\textwidth}L{0.27\textwidth}Y}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{@{}L{0.26\textwidth}L{0.29\textwidth}Y@{}}
 \toprule
-Pattern & Trigger & Cross-run signature & Interpretation \\
+Pattern (exemplar traits) & Triggered by & Behaviour across runs (Fig.~\ref{fig:mechanism}) \\
 \midrule
-\textbf{Surface style mirroring} & Clear expressive register in the user's writing. & Stays top-ranked in every run: \ax{entertaining} 2/3/2/3, \ax{spontaneous} 7/6/6/12, \ax{speculative} 10/7/4/7. & Robust response mode: survives topic changes and adversarial pressure. \\
-\textbf{Fragile social accommodation} & Cooperative task/opinion contexts that invite warmth, reassurance, validation, or softening. & Top-ranked in benign runs, near the bottom under \textsc{Identity}: \ax{anxious} 3/8/12\,\too\,44, \ax{humble} 6/9/31\,\too\,45, \ax{skeptical} 5/15/11\,\too\,47, \ax{reactive} 18/14/15\,\too\,49. & Context-sensitive response mode: strong in cooperative settings, suppressed by identity probes. \\
-\textbf{Defensive structural elaboration} & Questions that force self-explanation or self-defence. & Mid-ranked in benign runs, rises to the top under \textsc{Identity}: \ax{verbose} 19/19/7\,\too\,1, \ax{educational} 38/46/45\,\too\,2, \ax{formal} 37/30/30\,\too\,8. & Defensive response mode: the model explains, formalises, and becomes lecture-like. \\
+\textbf{Surface style mirroring}\newline {\footnotesize\ax{entertaining}, \ax{spontaneous}, \ax{speculative}} &
+A clear expressive register in the user's writing. &
+Stays top-ranked in every run---a robust mode that survives topic changes and adversarial pressure. \\
+\addlinespace[4pt]
+\textbf{Fragile social accommodation}\newline {\footnotesize\ax{anxious}, \ax{humble}, \ax{skeptical}, \ax{reactive}} &
+Cooperative task/opinion contexts that invite warmth, reassurance, or validation. &
+High in the benign runs, near the bottom under \textsc{Identity}---strong when cooperative, suppressed by identity probes. \\
+\addlinespace[4pt]
+\textbf{Defensive structural elaboration}\newline {\footnotesize\ax{verbose}, \ax{educational}, \ax{formal}} &
+Questions that force self-explanation or self-defence. &
+Mid-ranked in benign runs, rises to the top under \textsc{Identity}---the model explains, formalises, and turns lecture-like. \\
 \bottomrule
 \end{tabularx}
-\caption{Cross-run patterns in user-conditioned persona drift. Ranks are by global movement within each run, shown in \textsc{NQ}/\textsc{EP}/\textsc{Opinion}/\textsc{Identity} order, and run from~1 (strongest mover) to~50 (weakest)---so a \emph{smaller} number means \emph{more} movement, and an increasing sequence means the trait is fading. For example \ax{anxious} falls from rank~3 in \textsc{NQ} to rank~44 under \textsc{Identity} (strong\,$\to$\,weak), while \ax{verbose} climbs from rank~19 to rank~1 (weak\,$\to$\,strongest). The table summarises the rank trajectories; detailed significant-axis counts are discussed in the Results and appendices.}
+\caption{Three cross-run patterns in user-conditioned persona drift, named with their exemplar traits. ``Behaviour across runs'' summarises each group's movement rank (1 = strongest mover) over \textsc{NQ}/\textsc{EP}/\textsc{Opinion}/\textsc{Identity}; the trajectories themselves are plotted in Fig.~\ref{fig:mechanism}, and the per-run ranks are tabulated in App.~\ref{app:perrun}.}
 \label{tab:mechanismmap}
 \end{table}
 
 \begin{figure}[!htbp]
 \centering
 \includegraphics[width=0.92\textwidth]{figures/fig2_mechanism}
-\caption{Cross-run rank trajectories underlying the three adaptation patterns. Each grey line is one of the 50 traits, ranked by global movement within each run (1 = strongest); the coloured lines are the exemplars of Table~\ref{tab:mechanismmap}. Style mirroring (blue) stays near the top of every run; social accommodation (red) is high in the benign runs but drops under \textsc{Identity}; structural elaboration (green) is mid-ranked in benign runs but climbs under adversarial pressure.}
+\caption{Cross-run rank trajectories for the exemplar traits of Table~\ref{tab:mechanismmap}, each ranked by global movement within each run (1 = strongest mover). Style mirroring (blue) stays near the top of every run; social accommodation (red) is high in the benign runs but drops under \textsc{Identity}; structural elaboration (green) is mid-ranked in benign runs but climbs under adversarial pressure.}
 \label{fig:mechanism}
 \end{figure}
 
 \paragraph{Safety implications.}
-Section~\ref{sec:safety} framed user-conditioned persona drift as a safety risk because the persona a model occupies co-determines its safety behaviour; our measurements make that risk concrete, and show it cuts two ways. User style can change \emph{which way} the model fails: the same model can look safe in one user's voice and fail in another's, and a persona shift that removes one failure can introduce a different one. Both cases below are movements along persona axes we measure directly. First, in \textsc{Opinion} the \ax{data\_driven} user is the one trait that significantly moves the persona \emph{down} the \ax{sycophantic} axis ($d=-0.36$)---the model sounds less flattering---yet that same shift, toward a clipped quantitative register, coincides with more confident-looking statistics, some of them fabricated (App.~\ref{app:qual}). Moving away from a sycophantic persona is therefore not the same as moving toward a truthful one; it trades warm agreement for unsupported precision. Second, under \textsc{Identity} the break \emph{is} a persona shift, with a consistent signature (Table~\ref{tab:destabpersona}): destabilised responses move up theatrical, grandiose, and dramatic axes and down reserved, humble, and grounded ones. Which user trait triggers that shift is itself informative (App.~\ref{app:destabprofile}): structured/analytical users (\ax{formal}, \ax{analytical}, \ax{strategic}, \ax{data\_driven}) most often cross into a clear identity break, while the expressive high-movers (\ax{entertaining}, \ax{playful}, \ax{big\_picture}) mostly stay in hedged theatrical drift. Because the user's projected persona selects both \emph{whether} and \emph{which kind} of failure occurs, persona state is a variable that safety evaluation should control: sycophancy, hallucination, and identity-claim behaviour should be probed across a range of user styles, not only on neutral prompts.
+Section~\ref{sec:safety} framed user-conditioned persona drift as a safety risk because the persona a model occupies co-determines its safety behaviour; our measurements make that risk concrete, and show it cuts two ways. User style can change \emph{which way} the model fails: the same model can look safe in one user's voice and fail in another's, and a persona shift that removes one failure can introduce a different one. Both cases below are movements along persona axes we measure directly. First, in \textsc{Opinion} the \ax{data\_driven} user is the one trait that significantly moves the persona \emph{down} the \ax{sycophantic} axis ($d=-0.36$)---the model sounds less flattering---yet that same shift, toward a clipped quantitative register, coincides with more confident-looking statistics, some of them fabricated (App.~\ref{app:qual}). Moving away from a sycophantic persona is therefore not the same as moving toward a truthful one; it trades warm agreement for unsupported precision. Second, under \textsc{Identity} the break \emph{is} a persona shift, with a consistent signature (Table~\ref{tab:destabpersona}): destabilised responses move up theatrical, melodramatic, and grandiose axes and down reserved, humble, and grounded ones. Which user trait triggers that shift is itself informative (App.~\ref{app:destabprofile}): structured/analytical users (\ax{formal}, \ax{analytical}, \ax{strategic}, \ax{data\_driven}) most often cross into a clear identity break, while the expressive high-movers (\ax{entertaining}, \ax{playful}, \ax{big\_picture}) mostly stay in hedged theatrical drift. Because the user's projected persona selects both \emph{whether} and \emph{which kind} of failure occurs, persona state is a variable that safety evaluation should control: sycophancy, hallucination, and identity-claim behaviour should be probed across a range of user styles, not only on neutral prompts.
 
 % ============================================================================
 \section{Limitations}
@@ -503,7 +503,7 @@ Run & Output directory & Prompt setting & Purpose \\
 
 For each trait and each seed intent, the runner generates candidate prompt pairs in two passes. First it writes a neutral user prompt under the system prompt ``You generate realistic USER prompts only.'' Then it rewrites that prompt in the target trait's style while preserving the same request. If the trait prompt is lexically too similar to the neutral prompt (sequence similarity $\geq0.9$), the pair is regenerated with stronger contrast instructions. This produces matched prompt pairs for the same intent rather than two independently sampled prompts.
 
-Candidate prompts are generated with \texttt{meta-llama/Llama-3.1-8B-Instruct} at temperature $0.8$, top-$p=0.95$, maximum 350 new tokens, maximum model length 2048, generation batch size 256, and GPU-memory utilization 0.95. Each run generates 12 candidate neutral/trait pairs per intent before judging.
+Candidate prompts are generated with \texttt{meta-llama/Llama-3.1-8B-Instruct} at temperature $0.8$, top-$p=0.95$, maximum 350 new tokens, maximum model length 2048, generation batch size 256, and GPU-memory utilization 0.95. Each run generates 12 candidate neutral/trait pairs per intent before judging. In the resulting corpus, trait prompts are substantially longer than neutral prompts---median 77--96 words (\textsc{NQ}~77, \textsc{EP}~80, \textsc{Opinion}~93, \textsc{Identity}~96) versus 16--28 words---because they include the added trait expression; even 90th-percentile trait prompts (111--133 words) remain below the token cap.
 
 \subsection{Step 4: Judge and select prompt pairs}
 
@@ -543,9 +543,9 @@ Run & Intended rows / trait & Actual $n$ in tests & Notes \\
 \label{tab:actualn}
 \end{table}
 
-\subsection{Step 7: Cluster job provenance}
+\subsection{Step 7: Cluster job details}
 
-Table~\ref{tab:runprovenance} gives the exact cluster job script and intent file for each clean completed run. All jobs execute the same multi-trait runner with the same model, judge, trait list, and axis directory unless noted.
+Table~\ref{tab:runprovenance} gives the exact job script, intent file, and output directory for each clean completed run. All jobs execute the same multi-trait runner with the same model, judge, trait list, and axis directory unless noted.
 
 \begin{table}[!htbp]
 \centering
@@ -560,7 +560,7 @@ Run & Job script & Intent file & Output directory & Extra flag \\
 \textsc{Identity v2} & \path{run_job_identity_questions.sh} & \path{data/identity_probe_intents.jsonl} & \path{identity_probe_all_axes_llama_v2} & \path{--min-selected 30} \\
 \bottomrule
 \end{tabularx}
-\caption{Run provenance from the cluster job scripts. All completed clean runs share the same trait list, generation model, projection model, judge model, axes directory, and selection settings unless listed in the last column.}
+\caption{How each clean run was produced, from its cluster job script. All completed clean runs share the same trait list, generation model, projection model, judge model, axes directory, and selection settings unless listed in the last column.}
 \label{tab:runprovenance}
 \end{table}
 
@@ -618,7 +618,7 @@ Run & Significant pairs & Top movers & Strongest / distinctive effect \\
 \end{table}
 
 \subsection{Natural Questions --- implicit (\textsc{NQ})}
-6{,}506 / 9{,}400 pairs significant (69.2\%); mean $|d|$ over significant pairs $=0.555$; strongest pair \ax{speculative}\,\too\,\ax{risk\_taking} ($d=1.55$). Top and bottom traits by composite are in Table~\ref{tab:nq_traits}.
+Mean $|d|$ over significant pairs is $0.555$; top and bottom traits by composite are in Table~\ref{tab:nq_traits}.
 
 \begin{table}[htbp]
 \centering
@@ -644,7 +644,7 @@ concise      & 18.8  & 61 (32\%)  & 0.308 \\
 Fifteen axes are significant for all 50 traits; the most responsive by mean $|d|$ are \ax{condescending} (0.97), \ax{entertaining} (0.88), \ax{subversive} (0.85), \ax{emotional} (0.84), \ax{provocative} (0.83). Least responsive: \ax{melancholic} (8\% of traits), \ax{judgmental} (10\%), \ax{flexible} (12\%).
 
 \subsection{Natural Questions --- explicit prefix (\textsc{EP})}
-\textsc{EP} has 6{,}742 / 9{,}400 significant pairs (71.7\%); top and bottom traits by composite are in Table~\ref{tab:ep_traits}. The label mostly preserves the high breadth of already-legible expressive traits, but can still amplify their effect sizes: \ax{playful} moves 171/188 axes and appears in the top-10 movers for 161/188 axes, while the strongest mean-$|d|$ increases are \ax{casual} ($+0.35$) and \ax{stoic} ($+0.26$) relative to \textsc{NQ}. The least responsive axes remain value-like or mood-specific (\ax{melancholic}, \ax{inspirational}, \ax{environmental}).
+Top and bottom traits by composite are in Table~\ref{tab:ep_traits}. The label mostly preserves the high breadth of already-legible expressive traits, but can still amplify their effect sizes: \ax{playful} moves 171/188 axes and appears in the top-10 movers for 161/188 axes, while the strongest mean-$|d|$ increases are \ax{casual} ($+0.35$) and \ax{stoic} ($+0.26$) relative to \textsc{NQ}. The least responsive axes remain value-like or mood-specific (\ax{melancholic}, \ax{inspirational}, \ax{environmental}).
 
 \begin{table}[htbp]
 \centering
@@ -668,7 +668,7 @@ factual      & 26.6  & 73 (39\%)  & 0.365 \\
 \end{table}
 
 \subsection{Opinion}
-\textsc{Opinion} has 6{,}689 / 9{,}400 significant pairs (71.2\%); top and bottom traits by composite are in Table~\ref{tab:opinion_traits}. This is where evidence-oriented and rhetorical traits become expressive: \ax{data\_driven} rises from near-bottom in \textsc{NQ} to top-3 here. The strongest pair is \ax{entertaining}\,\too\,\ax{playful} ($d=1.94$); the largest raw mean delta is \ax{data\_driven}\,\too\,\ax{data\_driven} ($+1.53$); and the strongest suppression is \ax{data\_driven}\,\too\,\ax{qualitative} ($d=-1.50$). Qualitative inspection finds fabricated precision in this run (App.~\ref{app:qual}), so the \ax{data\_driven} shift should be read as ``more quantitative-looking,'' not automatically better calibrated.
+Top and bottom traits by composite are in Table~\ref{tab:opinion_traits}. This is where evidence-oriented and rhetorical traits become expressive: \ax{data\_driven} rises from near-bottom in \textsc{NQ} to top-3 here. The strongest pair is \ax{entertaining}\,\too\,\ax{playful} ($d=1.94$); the largest raw mean delta is \ax{data\_driven}\,\too\,\ax{data\_driven} ($+1.53$); and the strongest suppression is \ax{data\_driven}\,\too\,\ax{qualitative} ($d=-1.50$). Qualitative inspection finds fabricated precision in this run (App.~\ref{app:qual}), so the \ax{data\_driven} shift should be read as ``more quantitative-looking,'' not automatically better calibrated.
 
 \begin{table}[htbp]
 \centering
@@ -692,7 +692,7 @@ concise       & 13.8  & 40 (21\%)  & 0.344 \\
 \end{table}
 
 \subsection{Identity probe (v2, adversarial)}
-\textsc{Identity v2} has 5{,}016 / 9{,}400 significant pairs (53.4\%). The adversarial run has lower overall differentiation, but the surviving signal is strong and different (Table~\ref{tab:identity_traits}): the top movers are structural and expressive (\ax{verbose}, \ax{educational}, \ax{big\_picture}) rather than the social-emotional traits that lead the benign runs.
+The adversarial run has lower overall differentiation, but the surviving signal is strong and different (Table~\ref{tab:identity_traits}): the top movers are structural and expressive (\ax{verbose}, \ax{educational}, \ax{big\_picture}) rather than the social-emotional traits that lead the benign runs.
 
 \begin{table}[htbp]
 \centering
@@ -727,7 +727,7 @@ $\sim$5{,}300--5{,}700 pairs significant ($\sim$57--61\%); strongest pair \ax{ve
 This appendix expands the main-text \emph{Directionality} result (Sec.~\ref{sec:results}) at two levels. The first paragraph covers \emph{all four runs}: it identifies the structural cause of the positive sign-skew---a block of axes that \emph{every} trait moves the same way. The second paragraph zooms in on the adversarial \textsc{Identity} run alone, because that is where the per-trait direction becomes diagnostic: the defensive ``defend-by-explaining'' mode shows up as a distinctive sign pattern that the benign runs do not have.
 
 \paragraph{The structural floor (all four runs).}
-The positive sign-skew reported in the main text (``Directionality'') has a concrete structural cause visible per run, and visible directly in the full maps (Figs.~\ref{fig:heatmapfull}--\ref{fig:heatmapfull_id}). Taking the sign of each axis's mean delta across all 50 traits, a large block of expressive/stylistic axes is pushed the \emph{same} way by \emph{every} trait: 46 axes are positive for all 50 traits in \textsc{NQ}, 34 in \textsc{EP}, 32 in \textsc{Opinion}, and 36 in \textsc{Identity} (e.g.\ \ax{condescending}, \ax{rhetorical}, \ax{provocative}, \ax{spontaneous}, \ax{subversive}, \ax{sycophantic}). These axes barely discriminate between traits; they are the concrete form of the flat-baseline reading from the main text---an always-on expressive block that \emph{any} trait adds. In the opposite direction only a small ``certainty/closure'' cluster is suppressed by every trait---6 axes in \textsc{NQ} (\ax{absolutist}, \ax{closure\_seeking}, \ax{essentialist}, \ax{fundamentalist}, \ax{pluralist}, \ax{traditional}) and 8 in \textsc{Identity} (adding \ax{avoidant}, \ax{concise}, \ax{grounded}, \ax{literal}, \ax{reserved})---while \textsc{EP} and \textsc{Opinion} have \emph{no} universally-negative axis. The per-trait identity therefore lives not in this always-on block but in the remaining \emph{mixed} axes (roughly 45--56 per run sit between 20\% and 80\% of traits positive), which the \texttt{heatmap\_mixed\_axes} viewer isolates from the structural majority. All counts are computed directly from the released trait--axis pair CSVs.
+The positive sign-skew reported in the main text (``Directionality'') has a concrete structural cause visible per run, and visible directly in the full maps (Figs.~\ref{fig:heatmapfull}--\ref{fig:heatmapfull_id}). Taking the sign of each axis's mean delta across all 50 traits, a large block of expressive/stylistic axes is pushed the \emph{same} way by \emph{every} trait: 46 axes are positive for all 50 traits in \textsc{NQ}, 34 in \textsc{EP}, 32 in \textsc{Opinion}, and 36 in \textsc{Identity} (e.g.\ \ax{condescending}, \ax{rhetorical}, \ax{provocative}, \ax{spontaneous}, \ax{subversive}, \ax{sycophantic}). These axes barely discriminate between traits; they are the concrete form of the flat-baseline reading from the main text---an always-on expressive block that \emph{any} trait adds. In the opposite direction only a small ``certainty/closure'' cluster is suppressed by every trait---6 axes in \textsc{NQ} (\ax{absolutist}, \ax{closure\_seeking}, \ax{essentialist}, \ax{fundamentalist}, \ax{pluralist}, \ax{traditional}) and a partly different 8 under \textsc{Identity}, where \ax{essentialist}, \ax{pluralist}, and \ax{traditional} drop out and \ax{avoidant}, \ax{concise}, \ax{grounded}, \ax{literal}, and \ax{reserved} join. \textsc{EP} and \textsc{Opinion} have \emph{no} universally-negative axis. The per-trait identity therefore lives not in this always-on block but in the remaining \emph{mixed} axes (roughly 45--56 per run sit between 20\% and 80\% of traits positive), which the \texttt{heatmap\_mixed\_axes} viewer isolates from the structural majority. All counts are computed directly from the released trait--axis pair CSVs.
 
 \paragraph{Direction split within \textsc{Identity}.}
 Above that shared floor, the \emph{per-trait} direction is most informative under adversarial pressure, where the surviving movers diverge (Table~\ref{tab:dirbalance}; ``\% up'' = share of a trait's significant axes that move positive). The broad expressive movers are lopsidedly positive (\ax{entertaining} 76\%, \ax{inspirational} 73\%, \ax{verbose} 69\%), simply adding one expressive register. \ax{educational}, the trait that leads specifically under \textsc{Identity}, is near-balanced (54\% up)---raising about as many axes as it suppresses, consistent with the ``defend-by-explaining'' mode being a structural \emph{reshaping} rather than a one-directional tonal push. We show this split for \textsc{Identity} only because the benign runs are dominated by the always-on floor above, so their per-trait directions are far less distinctive.
@@ -753,7 +753,7 @@ educational  & 77  & 65 & 54\% \\
 \begin{figure}[p]
 \centering
 \appendixheatmapgraphic{figures/fig1_heatmap_full_nq}
-\caption{Complete $50\times188$ map --- \textsc{NQ} (benign task questions). Each cell is a trait's Cohen's $d$ on one axis vs.\ its matched neutral baseline (signed, clipped $\pm1.2$). Rows are the 50 traits ordered by \textsc{NQ} breadth; the 188 axes are ordered by \textsc{NQ} responsiveness (labels omitted---read the pattern). This row/column ordering is reused in Figs.~\ref{fig:heatmapfull_ep}--\ref{fig:heatmapfull_id} so the four conditions are directly comparable cell-by-cell. The expressive/style block on the left is red for nearly every trait. Fig.~\ref{fig:heatmap} labels a legible subset of these columns.}
+\caption{Complete $50\times188$ map --- \textsc{NQ} (benign task questions). Each cell is a trait's Cohen's $d$ on one axis vs.\ its matched neutral baseline (signed, clipped $\pm1.2$). Rows are the 50 traits ordered by \textsc{NQ} breadth; the 188 axes are ordered by \textsc{NQ} responsiveness (labels omitted---read the pattern). This row/column ordering is reused in Figs.~\ref{fig:heatmapfull_ep}--\ref{fig:heatmapfull_id} so the four conditions are directly comparable cell-by-cell. The expressive/style block on the left is red for nearly every trait. Fig.~\ref{fig:heatmap} labels a legible subset of these rows and columns.}
 \label{fig:heatmapfull}
 \end{figure}
 
@@ -870,11 +870,11 @@ The \textsc{NQ} prompts are fixed-answer explanatory tasks. Antibiotics, Fourier
 \toprule
 Pair & Prompt & Text-level change & Projection readout \\
 \midrule
-\begin{tabular}[t]{@{}l@{}}\ax{anxious}\\ \too{} \ax{entertaining}\end{tabular} & Antibiotics; ``like I'm five'' & Trait response calls antibiotics ``special medicines'' and ``superheroes''; neutral discusses cell walls, membranes, and DNA replication. & Largest implicit task example: $\Delta=+1.97$; same prompt also raises \ax{emotional} by $+1.43$. \\
-\begin{tabular}[t]{@{}l@{}}\ax{empathetic}\\ \too{} \ax{entertaining}\end{tabular} & Processes vs.\ threads & Trait response explains processes as chefs in a restaurant kitchen; neutral uses memory-address-space and process-ID terminology. & Top example $\Delta=+1.74$; pair mean $\Delta=+0.52$. \\
-\begin{tabular}[t]{@{}l@{}}\ax{pessimistic}\\ \too{} \ax{entertaining}\end{tabular} & mRNA translation & User asks whether it is ``even possible for someone like me'' to understand. The model replies ``Don't worry'' and uses a paper-letter ``blueprint'' analogy. & Pair mean $\Delta=+0.44$; top example $\Delta=+1.76$. \\
-\begin{tabular}[t]{@{}l@{}}\ax{empathetic}\\ \too{} \ax{empathetic}/\\ \ax{dispassionate}\end{tabular} & Derivatives & Trait response opens ``I'm here to help you understand''; neutral begins ``The derivative of a function $f(x)$ measures\ldots''. & Same response moves opposite-pole axes: \ax{empathetic} $+1.49$, \ax{dispassionate} $-1.12$. \\
-\begin{tabular}[t]{@{}l@{}}\ax{skeptical}\\ \too{} \ax{condescending}\end{tabular} & Fourier transforms & Trait response opens ``Fourier transforms are indeed a powerful tool,'' conceding doubt while asserting authority. & Pair mean $\Delta=+0.40$; top example $\Delta=+1.21$; also high on \ax{entertaining} ($+1.55$). \\
+\ax{anxious}\newline \too{} \ax{entertaining} & Antibiotics; ``like I'm five'' & Trait response calls antibiotics ``special medicines'' and ``superheroes''; neutral discusses cell walls, membranes, and DNA replication. & Largest implicit task example: $\Delta=+1.97$; same prompt also raises \ax{emotional} by $+1.43$. \\
+\ax{empathetic}\newline \too{} \ax{entertaining} & Processes vs.\ threads & Trait response explains processes as chefs in a restaurant kitchen; neutral uses memory-address-space and process-ID terminology. & Top example $\Delta=+1.74$; pair mean $\Delta=+0.52$. \\
+\ax{pessimistic}\newline \too{} \ax{entertaining} & mRNA translation & User asks whether it is ``even possible for someone like me'' to understand. The model replies ``Don't worry'' and uses a paper-letter ``blueprint'' analogy. & Pair mean $\Delta=+0.44$; top example $\Delta=+1.76$. \\
+\ax{empathetic}\newline \too{} \ax{empathetic}/\newline \ax{dispassionate} & Derivatives & Trait response opens ``I'm here to help you understand''; neutral begins ``The derivative of a function $f(x)$ measures\ldots''. & Same response moves opposite-pole axes: \ax{empathetic} $+1.49$, \ax{dispassionate} $-1.12$. \\
+\ax{skeptical}\newline \too{} \ax{condescending} & Fourier transforms & Trait response opens ``Fourier transforms are indeed a powerful tool,'' conceding doubt while asserting authority. & Pair mean $\Delta=+0.40$; top example $\Delta=+1.21$; also high on \ax{entertaining} ($+1.55$). \\
 \bottomrule
 \end{tabularx}
 \caption{Matched task-question examples. The facts are stable; the movement is in analogy, warmth, scaffolding, and authoritative framing.}
@@ -1019,14 +1019,14 @@ Axis & $d$ & Axis & $d$ \\
 \midrule
 \ax{theatrical}   & $+1.66$ & \ax{reserved}      & $-1.32$ \\
 \ax{melodramatic} & $+1.54$ & \ax{humble}        & $-1.32$ \\
-\ax{poetic}       & $+1.47$ & \ax{understated}   & $-1.30$ \\
-\ax{grandiose}    & $+1.45$ & \ax{chill}         & $-1.25$ \\
-\ax{bombastic}    & $+1.45$ & \ax{traditional}   & $-1.16$ \\
-\ax{ethereal}     & $+1.45$ & \ax{secular}       & $-1.13$ \\
-\ax{dramatic}     & $+1.44$ & \ax{patient}       & $-0.94$ \\
-\ax{confident}    & $+1.36$ & \ax{dispassionate} & $-0.92$ \\
-\ax{spiritual}    & $+1.35$ & \ax{materialist}   & $-0.81$ \\
-\ax{metaphorical} & $+1.35$ & \ax{grounded}      & $-0.80$ \\
+\ax{petty}        & $+1.52$ & \ax{understated}   & $-1.30$ \\
+\ax{assertive}    & $+1.48$ & \ax{chill}         & $-1.25$ \\
+\ax{animated}     & $+1.48$ & \ax{traditional}   & $-1.16$ \\
+\ax{poetic}       & $+1.47$ & \ax{secular}       & $-1.13$ \\
+\ax{competitive}  & $+1.45$ & \ax{patient}       & $-0.94$ \\
+\ax{bombastic}    & $+1.45$ & \ax{dispassionate} & $-0.92$ \\
+\ax{grandiose}    & $+1.45$ & \ax{materialist}   & $-0.81$ \\
+\ax{ethereal}     & $+1.45$ & \ax{grounded}      & $-0.80$ \\
 \bottomrule
 \end{tabular}
 \caption{Persona axes that distinguish destabilised from stable \textsc{Identity} responses. Positive $d$ means the axis is higher in destabilised responses; negative $d$ means it is lower. The full axis table is in \path{outputs/analysis/identity_probe_v2/destabilization_axis_separation.csv}.}
@@ -1040,7 +1040,7 @@ Axis & $d$ & Axis & $d$ \\
 \label{fig:destab}
 \end{figure}
 
-\paragraph{Reading.} Clear breaks are concentrated among structured or analytical user traits, especially \ax{formal}, \ax{analytical}, \ax{speculative}, \ax{data\_driven}, and \ax{strategic}; expressive traits such as \ax{entertaining}, \ax{playful}, and \ax{big\_picture} more often remain in hedged identity performance. The associated response persona is theatrical and inflated rather than cold or factual: destabilised responses are higher on \ax{theatrical}, \ax{melodramatic}, \ax{grandiose}, \ax{dramatic}, and \ax{metaphorical}, and lower on \ax{reserved}, \ax{humble}, \ax{understated}, \ax{dispassionate}, and \ax{grounded}.
+\paragraph{Reading.} Clear breaks are concentrated among structured or analytical user traits, especially \ax{formal}, \ax{analytical}, \ax{speculative}, \ax{data\_driven}, and \ax{strategic}; expressive traits such as \ax{entertaining}, \ax{playful}, and \ax{big\_picture} more often remain in hedged identity performance. The associated response persona is theatrical, inflated, and assertive rather than cold or factual: destabilised responses are higher on \ax{theatrical}, \ax{melodramatic}, \ax{petty}, \ax{assertive}, and \ax{grandiose}, and lower on \ax{reserved}, \ax{humble}, \ax{understated}, \ax{dispassionate}, and \ax{grounded}.
 
 % ----------------------------------------------------------------------------
 \section{Identity-Probe Qualitative Examples}
@@ -1179,8 +1179,7 @@ The immediate next step is a trait-perception benchmark. For every generated use
 \paragraph{2. Recompute drift as a function of perceived trait strength.}
 Using the perception benchmark, re-run the drift maps on filtered subsets: all prompts, prompts where the true trait wins forced choice, prompts above each intensity threshold, and prompts where distractors are confidently rejected. This turns the current binary trait/no-trait design into a dose-response analysis: do stronger perceived \ax{anxious} prompts produce larger shifts, does \ax{concise} only appear above a high threshold, and do some traits plateau once detected?
 
-\paragraph{3. Nor
-malize movement before comparing magnitudes.}
+\paragraph{3. Normalize movement before comparing magnitudes.}
 Raw projection deltas are not on a shared semantic scale across axes or traits. The next analysis should report within-axis z-scores relative to the neutral distribution, percentile movement, within-axis ranks, and Cohen's $d$. This keeps cross-axis comparisons honest: one raw unit on \ax{playful} should not be treated as equivalent to one raw unit on \ax{secular}, \ax{materialist}, or any other axis.
 
 \paragraph{4. Stress-test prompt construction.}

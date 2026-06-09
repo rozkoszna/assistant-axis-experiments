@@ -80,16 +80,28 @@ def _save(fig, name):
 # ----------------------------------------------------------------------------
 # Fig 1 helpers: the signed-Cohen's-d map
 # ----------------------------------------------------------------------------
-# Curated, family-grouped axis subset for the *legible* main-text heatmap.
-# Ordered left->right so the structure reads off the columns.
+# Curated axis subset for the *legible* main-text heatmap: two diagnostic axes per
+# family, ordered left->right so the structure reads off the columns. The split is
+# informative, not strict (see F2); stance/evidence deliberately pairs an axis that
+# rises (philosophical) with one that falls (data_driven) to show the family is mixed.
 AXIS_FAMILIES = [
-    ("style / register",   ["condescending", "entertaining", "playful", "provocative",
-                            "emotional", "subversive", "narrative"]),
-    ("warmth / social",    ["empathetic", "accommodating", "supportive"]),
-    ("stance / evidence",  ["data_driven", "materialist", "qualitative", "philosophical"]),
-    ("value / belief",     ["benevolent", "secular", "environmental", "spiritual"]),
-    ("structure",          ["pedantic", "accessible", "introspective"]),
-    ("certainty / closure",["absolutist", "closure_seeking", "dogmatic"]),
+    ("style / register",    ["condescending", "playful"]),
+    ("warmth / social",     ["empathetic", "accommodating"]),
+    ("stance / evidence",   ["data_driven", "philosophical"]),
+    ("value / belief",      ["secular", "spiritual"]),
+    ("structure",           ["pedantic", "introspective"]),
+    ("certainty / closure", ["absolutist", "closure_seeking"]),
+]
+
+# Representative trait subset (18) for the *legible* main-text heatmap: spans the
+# NQ-breadth range (broad expressive movers -> narrow ones) and includes the
+# social-emotional collapse cases (anxious, humble, skeptical, reactive), the
+# structural risers (verbose, educational, formal), and the gated data_driven.
+# The full 50-trait maps are the appendix panels (Figs. heatmapfull*).
+TRAIT_SUBSET = [
+    "playful", "entertaining", "empathetic", "anxious", "humble", "spontaneous",
+    "skeptical", "reactive", "verbose", "narrative", "speculative", "educational",
+    "traditional", "big_picture", "formal", "methodical", "data_driven", "concise",
 ]
 
 
@@ -101,43 +113,69 @@ def _trait_order_by_nq_breadth(nq_index):
 
 
 def fig_heatmap_curated():
-    """Legible main-text heatmap: NQ vs Identity, ~38 labelled axes grouped by family."""
+    """Legible main-text heatmap: NQ, Identity, and their difference, on 12
+    diagnostic axes (2 per family). White gutters separate the families; the
+    third panel (Identity - NQ) shows what adversarial pressure changes."""
     mats = {c: _load_pairs(c).pivot(index="trait", columns="axis", values="cohen_d")
             for c in ["NQ", "Identity"]}
     present = set(mats["NQ"].columns)
-    fam_bounds, axis_order, fam_labels = [], [], []
-    pos = 0
+
+    # Column layout with a one-cell white gutter between families.
+    layout, fam_labels = [], []          # layout entry = axis name, or None for a gutter
     for fam, axs in AXIS_FAMILIES:
         keep = [a for a in axs if a in present]
         if not keep:
             continue
-        axis_order += keep
-        fam_labels.append((fam, pos + len(keep) / 2.0))
-        pos += len(keep)
-        fam_bounds.append(pos)
-    trait_order = _trait_order_by_nq_breadth(mats["NQ"].index)
+        if layout:
+            layout.append(None)
+        start = len(layout)
+        layout += keep
+        fam_labels.append((fam, start - 0.5))   # anchor label at family's left edge
+    ncol = len(layout)
+    axis_cols = [j for j, a in enumerate(layout) if a is not None]
+    axis_names = [a for a in layout if a is not None]
+
+    trait_order = [t for t in _trait_order_by_nq_breadth(mats["NQ"].index)
+                   if t in TRAIT_SUBSET]
+
+    def grid(src):
+        sub = src.reindex(index=trait_order, columns=axis_names)
+        M = np.full((len(trait_order), ncol), np.nan)
+        M[:, axis_cols] = sub.values
+        return M
+
+    panels = [grid(mats["NQ"]), grid(mats["Identity"]),
+              grid(mats["Identity"].sub(mats["NQ"]))]
+    titles = [f"NQ\n({PCT_SIG['NQ']:.0f}% sig.)",
+              f"Identity\n({PCT_SIG['Identity']:.0f}% sig.)",
+              "Identity $-$ NQ\n(what changes)"]
 
     vlim = 1.2
-    # NQ | Identity side by side (upright): each panel gets the full page height
-    # for the 50 trait rows, so the row labels never overlap. White lines mark the
-    # family-group boundaries (families are listed left->right in the caption).
-    fig, axes = plt.subplots(1, 2, figsize=(6.6, 9.6), sharey=True)
-    for ax, cond in zip(axes, ["NQ", "Identity"]):
-        M = mats[cond].reindex(index=trait_order, columns=axis_order).values
-        im = ax.imshow(M, aspect="auto", cmap="RdBu_r", vmin=-vlim, vmax=vlim,
+    cmap = plt.get_cmap("RdBu_r").with_extremes(bad="white")  # gutters = clean white channels
+    fig, axes = plt.subplots(1, 3, figsize=(8.4, 6.2), sharey=True)
+    for ax, M, title in zip(axes, panels, titles):
+        im = ax.imshow(M, aspect="auto", cmap=cmap, vmin=-vlim, vmax=vlim,
                        interpolation="nearest")
-        ax.set_title(f"{cond}\n({PCT_SIG[cond]:.1f}% of 188 axes sig.)", fontsize=11, pad=6)
-        ax.set_xticks(range(len(axis_order)))
-        ax.set_xticklabels(axis_order, rotation=90, fontsize=7.5)
-        for b in fam_bounds[:-1]:
-            ax.axvline(b - 0.5, color="white", lw=1.5)
+        ax.set_title(title, fontsize=10.5, pad=26)
+        ax.set_xticks(axis_cols)
+        ax.set_xticklabels(axis_names, rotation=90, fontsize=8)
         ax.tick_params(length=0)
         for s in ax.spines.values():
             s.set_visible(False)
+        # family labels along the top (informative grouping, not a strict partition)
+        secax = ax.secondary_xaxis("top")
+        secax.set_xticks([c for _, c in fam_labels])
+        secax.set_xticklabels([f for f, _ in fam_labels], rotation=30,
+                              ha="left", fontsize=7, color="0.15", fontweight="bold")
+        secax.tick_params(length=0)
+        for s in secax.spines.values():
+            s.set_visible(False)
     axes[0].set_yticks(range(len(trait_order)))
-    axes[0].set_yticklabels(trait_order, fontsize=8)
-    cbar = fig.colorbar(im, ax=list(axes), fraction=0.04, pad=0.03)
-    cbar.set_label("Cohen's $d$ vs. matched neutral (clipped $\\pm1.2$)", fontsize=10)
+    axes[0].set_yticklabels(trait_order, fontsize=10)
+    cbar = fig.colorbar(im, ax=list(axes), orientation="horizontal",
+                        fraction=0.05, pad=0.28, aspect=45, shrink=0.55)
+    cbar.set_label("Cohen's $d$ vs. neutral  (right panel: $\\Delta$);  clipped $\\pm1.2$",
+                   fontsize=9.5)
     _save(fig, "fig1_heatmap")
 
 
@@ -177,10 +215,6 @@ def fig_mechanism():
     cols = ["nq__rank", "ep__rank", "opinion__rank", "identity__rank"]
     x = np.arange(4)
     fig, ax = plt.subplots(figsize=(8.2, 6.4))
-
-    # background: all traits faint
-    for _, row in r.iterrows():
-        ax.plot(x, row[cols].values, color="0.82", lw=0.7, zorder=1)
 
     legend_handles = []
     for label, (traits, color) in GROUPS.items():
